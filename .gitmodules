@@ -1,0 +1,3 @@
+[submodule "librr"]
+	path = librr
+	url = ./librr
