@@ -22,9 +22,6 @@ void tryRecordCommand() {
 void printZags(Zags zags) {
     cout << "date: " << zags.date << endl;
 }
-int record(rust::Vec<rust::String> args, RecordingFlags flags) {
-    return 0;
-}
 
 
 RecordingFlags recordFlagsToRust(rr::RecordFlags &in){
@@ -85,6 +82,15 @@ rr::RecordFlags recordFlagsToCpp(RecordingFlags &in){
     out.unmap_vdso = in.unmap_vdso;
     out.asan = in.asan;
     return out;
+}
+int record(rust::Vec<rust::String> args_in, RecordingFlags flags) {
+    //rr::raise_resource_limits();
+    vector<string> args;
+    for (auto arg : args_in) {
+        args.push_back(std::string(arg));
+    }
+    rr::RecordFlags rrflags = recordFlagsToCpp(flags);
+    return rr::start_recording(args,rrflags);
 }
 
 RecordingFlags getDefaultRecordFlags() {

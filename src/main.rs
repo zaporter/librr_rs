@@ -91,7 +91,7 @@ fn main() {
     ffi::tryRecordCommand();
     let flags = ffi::getDefaultRecordFlags();
     println!("{:?}", flags);
-
+    ffi::record(vec!["/home/zack/DateTester".to_owned()], flags);
     println!("Hello, world! {}", ffi::page_size());
 }
 
