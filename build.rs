@@ -5,7 +5,8 @@ fn main() {
 
 
     let dst = Config::new("librr").build();       
-
+    
+    println!("cargo:rerun-if-changed=librr/src/*");
     cxx_build::bridge("src/main.rs")
         .file("src/librr.cpp")
         .include("src")
