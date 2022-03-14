@@ -6,7 +6,8 @@ fn main() {
 
     let dst = Config::new("librr").build();       
     
-    println!("cargo:rerun-if-changed=librr/src/*");
+    //println!("cargo:rerun-if-changed=librr/src/*");
+
     cxx_build::bridge("src/main.rs")
         .file("src/librr.cpp")
         .include("src")
@@ -15,6 +16,12 @@ fn main() {
         .flag_if_supported("-std=c++14")
         .compile("librr-rs");
 
+    cxx_build::bridge("src/zags.rs")
+        .file("src/zags.cpp")
+        .include("src")
+        //.include(format!("{}/build", dst.display()))
+        .flag_if_supported("-std=c++14")
+        .compile("librr-rs");
     
     println!("cargo:rustc-link-search=native={}/bin", dst.display());
     println!("cargo:rustc-link-search=native={}/lib/rr", dst.display());

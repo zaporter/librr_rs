@@ -3,10 +3,6 @@
 using namespace std;
 
 
-Zags createZags() {
-    Zags toRet = {10,15.6};
-    return toRet;
-}
 void tryRecordCommand() {
     cout << "Started Record Command" << endl;
     
@@ -18,9 +14,6 @@ void tryRecordCommand() {
     rr::RecordFlags flags;
     rr::start_recording(args, flags);
 
-}
-void printZags(Zags zags) {
-    cout << "date: " << zags.date << endl;
 }
 
 
@@ -103,10 +96,5 @@ RecordingFlags recordFlagsPipeTest(RecordingFlags flags) {
     return recordFlagsToRust(rrflags);
 }
 
-int32_t testCPPFunction() {
-    cout << "Hello from Cpp" << endl;
-    return 0;
-
-}
 
 

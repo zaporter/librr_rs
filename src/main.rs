@@ -1,15 +1,11 @@
 use cxx::UniquePtr;
 
 use std::usize;
-
+mod zags;
+use crate::zags::ffi::*;
 
 #[cxx::bridge]
 mod ffi {
-
-    struct Zags {
-        date : i32,
-        count : f32,
-    }
     struct DisableCPUIDFeatures {
         features_ecx : u32,
         features_edx : u32,
@@ -69,11 +65,6 @@ mod ffi {
 
     unsafe extern "C++" {
         include!("librr-rs/src/librr.hpp");
-        type Zags;
-      //  type RecordingFlags;
-        fn createZags() -> Zags;
-        fn printZags(zags : Zags);
-        fn testCPPFunction() -> i32;
         fn tryRecordCommand();
         fn getDefaultRecordFlags() -> RecordingFlags;
         fn recordFlagsPipeTest(flags : RecordingFlags) -> RecordingFlags;
@@ -83,11 +74,10 @@ mod ffi {
 
 fn main() {
     //let mut printer = ffi::new_zprinter();
-    ffi::testCPPFunction();
-    let mut zags = ffi::createZags();
+    let mut zags = createZags();
     println!("Date: {}, count: {}", zags.date, zags.count);
     zags.date = 35;
-    ffi::printZags(zags);
+    printZags(zags);
     ffi::tryRecordCommand();
     let flags = ffi::getDefaultRecordFlags();
     println!("{:?}", flags);
