@@ -1,12 +1,6 @@
-use cxx::UniquePtr;
-
-use std::usize;
-mod zags;
-use crate::zags::ffi::*;
-
 #[cxx::bridge]
-mod ffi {
-    struct DisableCPUIDFeatures {
+pub mod recordffi {
+    pub struct DisableCPUIDFeatures {
         features_ecx : u32,
         features_edx : u32,
         extended_features_ebx : u32,
@@ -14,16 +8,17 @@ mod ffi {
         extended_features_edx : u32,
         xsave_features_eax : u32,
     }
+    /*
     enum NestedBehavior {
       NESTED_ERROR,
       NESTED_IGNORE,
       NESTED_DETACH,
       NESTED_RELEASE,
-    }
+    }*/
 
 
     #[derive(Debug, PartialEq, Eq, Clone)]
-    struct RecordingFlags {
+    pub struct RecordingFlags {
         extra_env : Vec<String>,
         max_ticks : i64,
         ignore_sig : i32,
@@ -57,40 +52,24 @@ mod ffi {
         asan : bool,
         
     }
-    #[namespace = "rr"]
-    unsafe extern "C++" {
-        include!("librr-rs/src/librr.hpp");
-        fn page_size() -> usize;
-    }
 
     unsafe extern "C++" {
-        include!("librr-rs/src/librr.hpp");
-        fn tryRecordCommand();
-        fn getDefaultRecordFlags() -> RecordingFlags;
-        fn recordFlagsPipeTest(flags : RecordingFlags) -> RecordingFlags;
-        fn record(args : Vec<String>, flags : RecordingFlags) -> i32;
+        include!("librr-rs/src/record.hpp");
+        pub fn get_default_record_flags() -> RecordingFlags;
+        pub fn record(args : Vec<String>, flags : RecordingFlags) -> i32;
+        fn record_flags_pipe_test(flags : RecordingFlags) -> RecordingFlags;
     }
 }
+pub use recordffi::*;
 
-fn main() {
-    //let mut printer = ffi::new_zprinter();
-    let mut zags = createZags();
-    println!("Date: {}, count: {}", zags.date, zags.count);
-    zags.date = 35;
-    printZags(zags);
-    ffi::tryRecordCommand();
-    let flags = ffi::getDefaultRecordFlags();
-    println!("{:?}", flags);
-    ffi::record(vec!["/home/zack/DateTester".to_owned()], flags);
-    println!("Hello, world! {}", ffi::page_size());
-}
+
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
+    use super::*;
     #[test]
     fn record_flags_defaults(){
-        let flags = ffi::getDefaultRecordFlags();
+        let flags = get_default_record_flags();
         assert_eq!(flags.extra_env.len(), 0);
         assert_eq!(flags.max_ticks, 2500000);
         assert_eq!(flags.ignore_sig, 0);
@@ -117,7 +96,7 @@ mod tests {
     }
     #[test]
     fn record_flags_pipe_test_1(){
-        let mut flags = ffi::getDefaultRecordFlags();
+        let mut flags = get_default_record_flags();
         flags.extra_env.push("Hello".to_owned());
         flags.extra_env.push("Programmer!".to_owned());
         flags.max_ticks = 221;
@@ -142,7 +121,7 @@ mod tests {
         flags.stap_sdt = true;
         flags.unmap_vdso = true;
         flags.asan = true;
-        let response = ffi::recordFlagsPipeTest(flags.clone());
+        let response = record_flags_pipe_test(flags.clone());
         assert_eq!(flags, response);
 
     }

@@ -1,6 +1,5 @@
-
 #[cxx::bridge]
-pub mod ffi {
+pub mod zagsffi {
     pub struct Zags {
         date : i32,
         count : f32,
@@ -12,5 +11,18 @@ pub mod ffi {
       //  type RecordingFlags;
         pub fn createZags() -> Zags;
         pub fn printZags(zags : Zags);
+    }
+}
+pub use zagsffi::*;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zags_test(){
+      assert_eq!(5,1+4);
+      let zags = createZags();
+      assert_eq!(zags.date, 10)
     }
 }
