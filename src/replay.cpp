@@ -126,4 +126,15 @@ void ReplayController::setup() {
 bool ReplayController::can_continue_replay() const {
     return !(this->is_replay_finished);
 }
+
+GdbRegisterValue new_register_value() {
+    GdbRegisterValue reg;
+    memset(&reg, 0, sizeof(reg));
+    reg.size = 9;
+    return reg;
+}
+
 } // namespace rr
+void printmyval(){
+  std::cout << "FYCJ YA" << std::endl;
+}

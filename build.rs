@@ -1,13 +1,52 @@
 extern crate cmake;
+extern crate bindgen;
+
+use std::env;
+use std::path::PathBuf;
 use cmake::Config;
 
 fn main() {
 
+    println!("cargo:rerun-if-changed=librr/src/*.h");
+    println!("cargo:rerun-if-changed=librr/src/*.cc");
+    println!("cargo:rerun-if-changed=src/*.hpp");
+    println!("cargo:rerun-if-changed=src/*.cpp");
+    println!("cargo:rerun-if-changed=build.rs");
 
     let dst = Config::new("librr").build();       
-    
-    //println!("cargo:rerun-if-changed=librr/src/*");
-
+    {   
+        let bindings = bindgen::Builder::default()
+            .header("librr/src/GdbConnection.h")
+            .allowlist_type("rr::GdbRegisterValue")
+            .newtype_enum("rr::GdbRegister")
+            .generate_comments(true)
+            .derive_default(true)
+            .translate_enum_integer_types(true)
+            .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+            .clang_arg("-xc++")
+            .clang_arg("-std=c++14")
+            .clang_arg(format!("-I{}/build", dst.display()))
+            .generate()
+            .or(Err("Unable to generate bindings for GdbConnection")).unwrap();
+        let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+        bindings.write_to_file(out_dir.join("gdbconnection-bindings.rs")).expect("Couldn't write bindings!");
+    }
+    {   
+        let bindings = bindgen::Builder::default()
+            .header("librr/src/TaskishUid.h")
+            .allowlist_type("rr::TaskUid")
+            .generate_comments(true)
+            .derive_default(true)
+            .translate_enum_integer_types(true)
+            .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+            .clang_arg("-xc++")
+            .clang_arg("-std=c++14")
+            .clang_arg(format!("-I{}/build", dst.display()))
+            .generate()
+            .or(Err("Unable to generate bindings for TaskishUid")).unwrap();
+        let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+        bindings.write_to_file(out_dir.join("taskishuid-bindings.rs")).expect("Couldn't write bindings!");
+    }
     cxx_build::bridge("src/librr.rs")
         .file("src/librr.cpp")
         .include("src")
@@ -39,13 +78,6 @@ fn main() {
         .flag_if_supported("-std=c++14")
         .compile("librr-rs-replay");
 
-    cxx_build::bridge("src/replaycontroller.rs")
-        .file("src/replaycontroller.cpp")
-        .include("src")
-        .include("librr/src")
-        .include(format!("{}/build", dst.display()))
-        .flag_if_supported("-std=c++14")
-        .compile("librr-rs-replaycontroller");
     
     println!("cargo:rustc-link-search=native={}/bin", dst.display());
     println!("cargo:rustc-link-search=native={}/lib/rr", dst.display());

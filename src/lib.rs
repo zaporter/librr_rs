@@ -5,12 +5,14 @@ mod zags;
 mod record;
 mod replay;
 mod librr;
-mod replaycontroller;
+
+#[allow(warnings)]
+mod bindgen;
+
 
 pub use record::*;
 pub use replay::*;
 pub use librr::*;
-pub use replaycontroller::*;
 
 #[cfg(test)]
 mod tests {
@@ -20,6 +22,7 @@ mod tests {
     fn simple_test_main(){
         assert_eq!(5,1+4);
     }
+    #[ignore]
     #[test]
     fn full_record_test(){
         raise_resource_limits();
@@ -42,6 +45,7 @@ mod tests {
         let retval = replay(flags, "".to_owned());
         assert_eq!(retval,0);
     }
+    #[ignore]
     #[test]
     fn full_binary_connection_test(){
         raise_resource_limits();

@@ -45,9 +45,12 @@ private:
 
 int replay(ReplayingFlags flags, rust::String tracedir);
 ReplayingFlags get_default_replay_flags();
+void printmyval();
 ReplayingFlags replay_flags_pipe_test(ReplayingFlags flags);
 
 // This is down here because it uses ReplayingFlags defined in replay.rs.h
 namespace rr {
 std::unique_ptr<ReplayController> new_replay_controller(rust::String trace_dir, ReplayingFlags flags);
+
+GdbRegisterValue new_register_value() ;
 }
