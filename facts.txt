@@ -1,0 +1,5 @@
+Singlesteps run at ~ 650k / 16 seconds or ~40k / sec.
+
+Continues run at ~ 10k / sec.
+
+Obviously this depends on the program but should serve as an order of magnitude guideline.

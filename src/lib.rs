@@ -1,11 +1,16 @@
+//TODO:
+//Use throw catch to return Result<> types instead of c style return codes.
+
 mod zags;
 mod record;
 mod replay;
 mod librr;
+mod replaycontroller;
 
-use record::*;
-use replay::*;
-use librr::*;
+pub use record::*;
+pub use replay::*;
+pub use librr::*;
+pub use replaycontroller::*;
 
 #[cfg(test)]
 mod tests {
@@ -21,6 +26,32 @@ mod tests {
         let flags = get_default_record_flags();
         println!("{:?}", flags);
         let retval= record(vec!["/home/zack/date_viewer".to_owned()], flags);
+        //let retval= record(vec!["firefox".to_owned()], flags);
+        assert_eq!(retval,0);
+    }
+    #[ignore]
+    #[test]
+    fn full_replay_test(){
+        raise_resource_limits();
+        let mut flags = get_default_replay_flags();
+        flags.goto_event = i64::MAX;
+        //flags.singlestep_to_event = 1;
+        //flags.dump_interval = 400;
+        flags.dont_launch_debugger = true;
+        println!("{:?}", flags);
+        let retval = replay(flags, "".to_owned());
+        assert_eq!(retval,0);
+    }
+    #[test]
+    fn full_binary_connection_test(){
+        raise_resource_limits();
+        let mut flags = get_default_replay_flags();
+        flags.goto_event = 535;
+        //flags.singlestep_to_event = 1;
+        //flags.dump_interval = 400;
+        flags.dont_launch_debugger = true;
+        println!("{:?}", flags);
+        let retval = replay(flags, "".to_owned());
         assert_eq!(retval,0);
     }
 

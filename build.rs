@@ -38,6 +38,14 @@ fn main() {
         .include(format!("{}/build", dst.display()))
         .flag_if_supported("-std=c++14")
         .compile("librr-rs-replay");
+
+    cxx_build::bridge("src/replaycontroller.rs")
+        .file("src/replaycontroller.cpp")
+        .include("src")
+        .include("librr/src")
+        .include(format!("{}/build", dst.display()))
+        .flag_if_supported("-std=c++14")
+        .compile("librr-rs-replaycontroller");
     
     println!("cargo:rustc-link-search=native={}/bin", dst.display());
     println!("cargo:rustc-link-search=native={}/lib/rr", dst.display());

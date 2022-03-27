@@ -1,5 +1,10 @@
+use cxx::UniquePtr;
+use std::pin::Pin;
+
 #[cxx::bridge]
 pub mod replayffi {
+
+
     #[derive(Debug, PartialEq, Eq, Clone)]
     pub struct ReplayingFlags {
         goto_event : i64,
@@ -22,9 +27,19 @@ pub mod replayffi {
     }
     unsafe extern "C++" {
         include!("librr-rs/src/replay.hpp");
-        pub fn test_replay() -> i32;
+        pub fn replay(flags : ReplayingFlags, tracedir : String) -> i32;
         pub fn get_default_replay_flags() -> ReplayingFlags;
         fn replay_flags_pipe_test(flags: ReplayingFlags) -> ReplayingFlags;
+    }
+    #[namespace = "rr" ]
+    unsafe extern "C++" {
+        include!("librr-rs/src/replay.hpp");
+        type ReplayController;
+        fn print_test_controller(&self);
+        fn test_run(self : Pin<&mut ReplayController>);
+        fn can_continue_replay(&self) -> bool;
+        fn setup(self : Pin<&mut ReplayController>);
+        fn new_replay_controller(trace_dir : String, flags:ReplayingFlags) -> UniquePtr<ReplayController>;
     }
 }
 
@@ -33,6 +48,22 @@ pub use replayffi::*;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn replay_flags_fuck(){
+        let flags = get_default_replay_flags();
+        let mut controller = new_replay_controller("".to_owned(), flags);
+        controller.print_test_controller();
+        controller.pin_mut().setup();
+        println!("can continue replay: {}", controller.can_continue_replay());
+    }
+    #[test]
+    fn replay_controller_setup(){
+        let flags = get_default_replay_flags();
+        let mut controller = new_replay_controller("".to_owned(), flags);
+        controller.print_test_controller();
+        controller.pin_mut().setup();
+        assert!(controller.can_continue_replay())
+    }
     #[test]
     fn replay_flags_defaults(){
         //test_replay();
