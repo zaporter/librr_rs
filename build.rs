@@ -18,6 +18,7 @@ fn main() {
         let bindings = bindgen::Builder::default()
             .header("librr/src/GdbConnection.h")
             .allowlist_type("rr::GdbRegisterValue")
+            .allowlist_type("rr::GdbThreadId")
             .newtype_enum("rr::GdbRegister")
             .generate_comments(true)
             .derive_default(true)
