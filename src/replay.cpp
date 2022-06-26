@@ -1,4 +1,5 @@
 #include "replay.hpp"
+#include <iostream>
 
 using namespace std;
 using namespace rr;
@@ -99,7 +100,7 @@ void ReplayController::print_test_controller() const{
 void ReplayController::test_run() {
   while(true) {
     ReplayResult result =
-        timeline.replay_step_forward(RUN_CONTINUE, target.event);
+        timeline.replay_step_forward(RUN_CONTINUE);
     if (result.status == REPLAY_EXITED) {
         std::cout << "Debugger was not launched before end of trace" << std::endl;
       return;
@@ -107,15 +108,16 @@ void ReplayController::test_run() {
   }
 }
 void ReplayController::setup() {
+  ReplayResult result;
   do {
-    ReplayResult result =
-        timeline.replay_step_forward(RUN_CONTINUE, target.event);
+    result =
+        timeline.replay_step_forward(RUN_CONTINUE);
     if (result.status == REPLAY_EXITED) {
       // TODO LOG(info) << "Debugger was not launched before end of trace";
       this->is_replay_finished = true;
       return;
     }
-  } while (!at_target());
+  } while (!at_target(result));
   Task* t = timeline.current_session().current_task();
   FrameTime first_run_event = std::max(t->vm()->first_run_event(),
     t->thread_group()->first_run_event());

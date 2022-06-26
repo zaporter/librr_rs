@@ -1,0 +1,44 @@
+My Todo:
+GET_CURRENT_THREAD: Get current threadid of the session
+GET_THREAD_LIST: Get list of thread IDs for the session
+INTERRUPT: Send an interrupt
+GET_FILE_EXEC
+FILE_SETFS
+FILE_OPEN
+FILE_PREAD Also does things with the timeline and trace readers. I need to figure out how this works.
+FILE_CLOSE
+SET_CONTINUE_THREAD
+GET_IS_THREAD_ALIVE: thread is alive 
+GET_THREAD_EXTRA_INFO
+SET_CONTINUE_THREAD : I dont know if this works. it just replies with target !=nullptr
+SET_QUERY_THREAD : same as SET_CONTINUE_THREAD
+
+GET_AUXV
+GET_MEM: reads 'len' at 'addr' into Vec<u8>. Then "replace_breakpoints_with_original_values" in that memory
+SET_MEM: only right to diversion session, writes 'data' at 'addr'
+
+SEARCH_MEM: I think this searches memory for a matching pattern and returns a void*. 
+GET_REG: gets value from a register
+GET_REGS : gets values from registers
+
+
+SET_REG : ignore if ORIG_EAX
+
+GET_STOP_REASON : 
+SET_SW_BREAK: need to look into this further
+SET_RDWR_WATCH: 
+REMOVE_SW_BREAK
+REMOVE_RDWR_WATCH
+
+READ_SIGINFO
+RR_CMD : internal rr commands from the debugger.
+QSYMBOL : Some magic coodination between the gdb server and client for symbol communication
+TLS : (?)
+
+Completed:
+
+
+RR-ignored:
+RESTART
+GET_OFFSETS
+WRITE_SIGINFO (?)

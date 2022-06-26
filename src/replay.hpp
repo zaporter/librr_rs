@@ -54,3 +54,4 @@ std::unique_ptr<ReplayController> new_replay_controller(rust::String trace_dir, 
 
 GdbRegisterValue new_register_value() ;
 }
+rr::ReplayFlags replay_flags_to_cpp(ReplayingFlags );

@@ -12,7 +12,10 @@
 extern "C++" {
 #include "Flags.h"
 #include "RecordCommand.h"
+#include "ReplayCommand.h"
 #include "RecordSession.h"
 }
 
-
+namespace rr {
+void test_replay_cpp();
+}

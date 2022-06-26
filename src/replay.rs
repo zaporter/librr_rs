@@ -2,11 +2,6 @@ use cxx::UniquePtr;
 use std::pin::Pin;
 
 use cxx::{type_id, ExternType};
-
-unsafe impl ExternType for crate::bindgen::gdbconnection::rr_GdbRegisterValue {
-    type Id = type_id!("rr::GdbRegisterValue");
-    type Kind = cxx::kind::Trivial;
-}
 #[cxx::bridge]
 pub mod replayffi {
 
@@ -17,17 +12,25 @@ pub mod replayffi {
         singlestep_to_event : i64,
         target_process : i32,
         // TODO ZACK: process_created_how
+        // Dont use.
         dont_launch_debugger : bool,
+        // Dont use.
         dbg_port : i32,
+        // Dont use.
         dbg_host : String,
+        // Dont use.
         keep_listening : bool,
+        // Dont use.
         gdb_options : Vec<String>,
+        // Dont use.
         gdb_binary_file_path : String,
         redirect : bool,
         cpu_unbound : bool,
         share_private_mappings : bool,
         dump_interval : u32,
+        // Dont use.
         serve_files : bool,
+        // Dont use.
         tty : String,
 
     }
@@ -41,12 +44,6 @@ pub mod replayffi {
     #[namespace = "rr" ]
     unsafe extern "C++" {
         include!("librr-rs/src/replay.hpp");
-        type GdbRegisterValue = crate::bindgen::gdbconnection::rr_GdbRegisterValue;
-        pub fn new_register_value() -> GdbRegisterValue;
-    }
-    #[namespace = "rr" ]
-    unsafe extern "C++" {
-        include!("librr-rs/src/replay.hpp");
 
         type ReplayController;
         fn print_test_controller(&self);
@@ -56,7 +53,11 @@ pub mod replayffi {
         fn new_replay_controller(trace_dir : String, flags:ReplayingFlags) -> UniquePtr<ReplayController>;
     }
 }
-
+impl ReplayingFlags {
+    pub fn default() ->ReplayingFlags {
+        get_default_replay_flags()
+    }
+}
 pub use replayffi::*;
 
 #[cfg(test)]
@@ -66,9 +67,7 @@ mod tests {
     #[test]
     fn replay_flags_fuck2(){
         printmyval();
-        let reg = new_register_value();
         
-        println!("can continue replay: {}", reg.size);
     }
 
     #[test]

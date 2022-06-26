@@ -56,28 +56,14 @@ fn main() {
         .flag_if_supported("-std=c++14")
         .compile("librr-rs-librr");
 
-    cxx_build::bridge("src/zags.rs")
-        .file("src/zags.cpp")
-        .include("src")
-        //.include(format!("{}/build", dst.display()))
-        .flag_if_supported("-std=c++14")
-        .compile("librr-rs-zags");
-    
-    cxx_build::bridge("src/record.rs")
-        .file("src/record.cpp")
+    cxx_build::bridge("src/binary_interface.rs")
+        .file("src/binary_interface.cpp")
         .include("src")
         .include("librr/src")
         .include(format!("{}/build", dst.display()))
         .flag_if_supported("-std=c++14")
-        .compile("librr-rs-record");
+        .compile("librr-rs-binary-interface");
 
-    cxx_build::bridge("src/replay.rs")
-        .file("src/replay.cpp")
-        .include("src")
-        .include("librr/src")
-        .include(format!("{}/build", dst.display()))
-        .flag_if_supported("-std=c++14")
-        .compile("librr-rs-replay");
 
     
     println!("cargo:rustc-link-search=native={}/bin", dst.display());
