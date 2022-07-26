@@ -63,29 +63,22 @@ pub use replayffi::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+    use serial_test::serial;
+
     #[test]
     fn replay_flags_fuck2(){
         printmyval();
         
     }
-
-    #[test]
-    fn replay_flags_fuck(){
-        let flags = get_default_replay_flags();
-        let mut controller = new_replay_controller("".to_owned(), flags);
-        controller.print_test_controller();
-        controller.pin_mut().setup();
-        println!("can continue replay: {}", controller.can_continue_replay());
-    }
-    #[test]
-    fn replay_controller_setup(){
-        let flags = get_default_replay_flags();
-        let mut controller = new_replay_controller("".to_owned(), flags);
-        controller.print_test_controller();
-        controller.pin_mut().setup();
-        assert!(controller.can_continue_replay())
-    }
+    // #[test]
+    // #[serial]
+    // fn replay_controller_setup(){
+    //     let flags = get_default_replay_flags();
+    //     let mut controller = new_replay_controller("".to_owned(), flags);
+    //     controller.print_test_controller();
+    //     controller.pin_mut().setup();
+    //     assert!(controller.can_continue_replay())
+    // }
     #[test]
     fn replay_flags_defaults(){
         //test_replay();

@@ -17,6 +17,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn librr_replay_cpp_test(){
         assert!(page_size()>0);
         assert_eq!(5,1+4);

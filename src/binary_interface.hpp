@@ -14,6 +14,16 @@
 #include <limits>
 #include "ReplaySession.h"
 #include "ReplayCommand.h"
+#include "Session.h"
+#include "replay.hpp"
+
+#include "Command.h"
+#include "Flags.h"
+#include "GdbServer.h"
+#include "ReplaySession.h"
+#include "core.h"
+#include <memory>
+#include <unistd.h>
 namespace rr {
 
 
@@ -22,13 +32,16 @@ namespace rr {
  * Sadly that functionality is exposed only though a message passing API so 
  * this class creates and passes message to a tricked GdbServer.
  */
-class BinaryInterface /*: public GdbServer*/ {
+class BinaryInterface  {
 public: 
-  BinaryInterface() 
+  BinaryInterface(std::shared_ptr<ReplaySession> session, const GdbServer::Target& target)
+    : s(session, target)
     /*GdbServer( session, target), state(REPORT_NORMAL)*/
   {};
 
-  /* bool initialize(); */
+  GdbServer s;
+  bool initialize();
+  int64_t current_frame_time() const;
   /* ReportState state; */
   /* /1* bool set_query_thread(GdbThreadId); *1/ */
   /* GdbThreadId get_current_thread() const; */
@@ -53,7 +66,10 @@ public:
   /* /1* void write_siginfo(); // rr-todo *1/ */
 
 }; // end class
-std::unique_ptr<rr::BinaryInterface> new_binary_interface(rust::String);
+std::unique_ptr<rr::BinaryInterface> new_binary_interface(int64_t,rust::String);
+void beta_test_me(); // replay
+void gamma_test_me(); // ?
+void delta_test_me();
 /* void sayHi(); */
 
 } // end namespace

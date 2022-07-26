@@ -56,6 +56,14 @@ fn main() {
         .flag_if_supported("-std=c++14")
         .compile("librr-rs-librr");
 
+    cxx_build::bridge("src/replay.rs")
+        .file("src/replay.cpp")
+        .include("src")
+        .include("librr/src")
+        .include(format!("{}/build", dst.display()))
+        .flag_if_supported("-std=c++14")
+        .compile("librr-rs-replay");
+
     cxx_build::bridge("src/binary_interface.rs")
         .file("src/binary_interface.cpp")
         .include("src")
@@ -63,6 +71,7 @@ fn main() {
         .include(format!("{}/build", dst.display()))
         .flag_if_supported("-std=c++14")
         .compile("librr-rs-binary-interface");
+
 
 
     

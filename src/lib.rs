@@ -1,8 +1,8 @@
 //TODO:
 //Use throw catch to return Result<> types instead of c style return codes.
-
 mod librr;
 mod binary_interface;
+mod replay;
 
 #[allow(warnings)]
 mod bindgen;
@@ -10,6 +10,7 @@ mod bindgen;
 
 pub use librr::*;
 pub use binary_interface::*;
+pub use replay::*;
 
 #[cfg(test)]
 mod tests {

@@ -2,6 +2,37 @@
 #include <iostream>
 #include <memory>
 #include <unistd.h>
+#include "util.h"
+#include "core.h"
+#include "main.h"
+
+
+
+#include "Command.h"
+#include "Flags.h"
+#include "GdbServer.h"
+#include "ReplaySession.h"
+#include "core.h"
+#include <memory>
+#include <unistd.h>
+
+
+
+#include <sys/prctl.h>
+#include <sys/time.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include <limits>
+#include <iostream>
+
+#include "Command.h"
+#include "GdbServer.h"
+#include "ReplaySession.h"
+#include "ScopedFd.h"
+#include "kernel_metadata.h"
+#include "log.h"
+#include "main.h"
 
 
 using namespace std;
@@ -16,6 +47,57 @@ namespace rr {
 /*   return num_bytes; */
 /* } */
 
+static bool pid_exists(const string& trace_dir, pid_t pid) {
+  TraceReader trace(trace_dir);
+
+  while (true) {
+    auto e = trace.read_task_event();
+    if (e.type() == TraceTaskEvent::NONE) {
+      return false;
+    }
+    if (e.tid() == pid) {
+      return true;
+    }
+  }
+}
+
+static bool pid_execs(const string& trace_dir, pid_t pid) {
+  TraceReader trace(trace_dir);
+
+  while (true) {
+    auto e = trace.read_task_event();
+    if (e.type() == TraceTaskEvent::NONE) {
+      return false;
+    }
+    if (e.tid() == pid && e.type() == TraceTaskEvent::EXEC) {
+      return true;
+    }
+  }
+}
+
+static int find_pid_for_command(const string& trace_dir,
+                                const string& command) {
+  TraceReader trace(trace_dir);
+
+  while (true) {
+    TraceTaskEvent e = trace.read_task_event();
+    if (e.type() == TraceTaskEvent::NONE) {
+      return -1;
+    }
+    if (e.type() != TraceTaskEvent::EXEC) {
+      continue;
+    }
+    if (e.cmd_line().empty()) {
+      continue;
+    }
+    auto& cmd = e.cmd_line()[0];
+    if (cmd == command ||
+        (cmd.size() > command.size() &&
+         cmd.substr(cmd.size() - command.size() - 1) == ('/' + command))) {
+      return e.tid();
+    }
+  }
+}
 /* static bool set_reg(Task* target, const GdbRegisterValue& reg) { */
 /*   if (!reg.defined) { */
 /*     return false; */
@@ -98,33 +180,67 @@ namespace rr {
 /*   } */
 /* } */
 
+int64_t BinaryInterface::current_frame_time() const {
+  return s.timeline.current_session().current_frame_time();
+}
 
-/* bool BinaryInterface::initialize(){ */
-/*   ReplayResult result; */
-/*   do { */
-/*     result = timeline.replay_step_forward(RUN_CONTINUE); */
-/*     cout << "hehe" << endl; */
-/*     cout << "target.event" << target.event << endl; */
-/*     if (result.status == REPLAY_EXITED) { */
-/*       LOG(info) << "Debugger was not launched before end of trace"; */
-/*       return false; */
-/*     } */
-/*   } while (!at_target(result)); */
+bool BinaryInterface::initialize(){
+  ReplayResult result;
+  int i = 0;
+  do {
+    ++i;
+    result = s.timeline.replay_step_forward(RUN_CONTINUE);
+    if (result.status == REPLAY_EXITED) {
+      //LOG(info) << "Debugger was not launched before end of trace";
+      return false;
+    }
+  } while (!s.at_target(result));
+  cout << "Did " << i << "iterations" << endl; 
+  return true;
+}
+  /* Task* t = timeline.current_session().current_task(); */
+  /* ScopedFd listen_fd = open_socket(flags.dbg_host.c_str(), &port, probe); */
+  /* if (flags.debugger_params_write_pipe) { */
+  /*   DebuggerParams params; */
+  /*   memset(&params, 0, sizeof(params)); */
+  /*   strncpy(params.exe_image, t->vm()->exe_image().c_str(), */
+  /*           sizeof(params.exe_image) - 1); */
+  /*   strncpy(params.host, flags.dbg_host.c_str(), sizeof(params.host) - 1); */
+  /*   params.port = port; */
 
-/*   Task* t = timeline.current_session().current_task(); */
-/*   debuggee_tguid = t->thread_group()->tguid(); */
+  /*   ssize_t nwritten = */
+  /*       write(*flags.debugger_params_write_pipe, &params, sizeof(params)); */
+  /*   DEBUG_ASSERT(nwritten == sizeof(params)); */
+  /* } else { */
+  /*   fputs("Launch gdb with\n  ", stderr); */
+  /*   print_debugger_launch_command(t, flags.dbg_host, port, flags.serve_files, */
+  /*                                 flags.debugger_name.c_str(), stderr); */
+  /* } */
 
-/*   FrameTime first_run_event = std::max(t->vm()->first_run_event(), */
-/*     t->thread_group()->first_run_event()); */
-/*   if (first_run_event) { */
-/*     timeline.set_reverse_execution_barrier_event(first_run_event); */
-/*   } */
+  /* if (flags.debugger_params_write_pipe) { */
+  /*   flags.debugger_params_write_pipe->close(); */
+  /* } */
+  /* debuggee_tguid = t->thread_group()->tguid(); */
 
-/*   cout << "initialized" << endl; */
+  /* FrameTime first_run_event = std::max(t->vm()->first_run_event(), */
+  /*   t->thread_group()->first_run_event()); */
+  /* if (first_run_event) { */
+  /*   timeline.set_reverse_execution_barrier_event(first_run_event); */
+  /* } */
 
-/*   return true; */
+  /* do { */
+  /*   LOG(debug) << "initializing debugger connection"; */
+  /*   dbg = await_connection(t, listen_fd, GdbConnection::Features()); */
+  /*   activate_debugger(); */
 
-/* } */
+  /*   GdbRequest last_resume_request; */
+  /*   while (debug_one_step(last_resume_request) == CONTINUE_DEBUGGING) { */
+  /*   } */
+
+  /*   timeline.remove_breakpoints_and_watchpoints(); */
+  /* } while (flags.keep_listening); */
+
+  /* LOG(debug) << "debugger server exiting ..."; */
 
 /* GdbThreadId BinaryInterface::get_current_thread() const{ */
 /*     BinaryInterface* me = const_cast<BinaryInterface*>(this); */
@@ -230,37 +346,25 @@ static ReplaySession::Flags session_flags(const ReplayFlags& flags) {
   result.cpu_unbound = flags.cpu_unbound;
   return result;
 }
-std::unique_ptr<BinaryInterface> new_binary_interface(rust::String trace_dir_rust) {
-  rr::ReplayFlags flags;// = replay_flags_to_cpp(rust_replay_flags);
-  flags.goto_event = 1;
-  flags.dont_launch_debugger = true;
-  string trace_dir = std::string(trace_dir_rust);
 
-  /* cout << "TRACE_DIR : "<<trace_dir << endl; */
-  /* cout << "goto_event : "<<flags.goto_event << endl; */
-  /* cout << "singlestep_to_event : "<<flags.singlestep_to_event << endl; */
-  /* cout << "target_process : "<<flags.target_process << endl; */
-  /* cout << "created_how : "<<flags.process_created_how << endl; */
-  /* cout << "target_process : "<<flags.target_process << endl; */
-  /* cout << "target_command : "<<flags.target_command << endl; */
-  /* cout << "dont_launch_debugger : "<<flags.dont_launch_debugger << endl; */
-  /* cout << "keep_listening : "<<flags.keep_listening << endl; */
-  /* cout << "redirect : "<<flags.redirect << endl; */
-  /* cout << "keep_listening : "<<flags.keep_listening << endl; */
-  /* cout << "cpu_unbound : "<<flags.cpu_unbound << endl; */
-  /* cout << "share_private_mappings : "<<flags.share_private_mappings << endl; */
+static pid_t waiting_for_child;
 
-  /* cout << "tty : "<<flags.tty << endl; */
-  /* cout << "share_private_mappings : "<<flags.share_private_mappings << endl; */
 
-  /* cout << "serve_files : "<<flags.serve_files << endl; */
-  /* { */
-  /*   std::vector<std::string> v = { "-a" , "-g", "1"}; */
-  /*   auto command = ReplayCommand::get(); */
-  /*   command->run(v); */
-  /*   cout << "DONE CONNAMD : " << endl; */
-  /* } */
+static void handle_SIGINT_in_parent(int sig) {
+ // DEBUG_ASSERT(sig == SIGINT);
+  // Just ignore it.
+}
 
+static GdbServer* server_ptr = nullptr;
+
+static void handle_SIGINT_in_child(int sig) {
+  //DEBUG_ASSERT(sig == SIGINT);
+  if (server_ptr) {
+    server_ptr->interrupt_replay_to_target();
+  }
+}
+
+static int replay(const string& trace_dir, const ReplayFlags& flags) {
   GdbServer::Target target;
   switch (flags.process_created_how) {
     case ReplayFlags::CREATED_EXEC:
@@ -276,17 +380,217 @@ std::unique_ptr<BinaryInterface> new_binary_interface(rust::String trace_dir_rus
   }
   target.event = flags.goto_event;
 
-  auto session = ReplaySession::create(trace_dir, session_flags(flags));
-  /* cout << "creating server" << endl; */
-  /* auto server = new GdbServer(session, target); */
-  /* cout << "running server" << endl; */
-  /* server->serve_replay(conn_flags); */
-  /* cout << "Finished gdb server" << endl; */
-  /* auto bin_interface = new BinaryInterface(session, target); */
-  /* bin_interface->initialize(); */
-  /* cout << "ENDED" << endl; */
-  return std::unique_ptr<BinaryInterface>(new BinaryInterface());
+  // If we're not going to autolaunch the debugger, don't go
+  // through the rigamarole to set that up.  All it does is
+  // complicate the process tree and confuse users.
+  if (flags.dont_launch_debugger) {
+    if (target.event == numeric_limits<decltype(target.event)>::max()) {
+      //serve_replay_no_debugger(trace_dir, flags);
+    } else {
+      auto session = ReplaySession::create(trace_dir, session_flags(flags));
+      GdbServer::ConnectionFlags conn_flags;
+      conn_flags.dbg_port = flags.dbg_port;
+      conn_flags.dbg_host = flags.dbg_host;
+      conn_flags.debugger_name = flags.gdb_binary_file_path;
+      conn_flags.keep_listening = flags.keep_listening;
+      conn_flags.serve_files = flags.serve_files;
+      GdbServer(session, target).serve_replay(conn_flags);
+    }
+
+    // Everything should have been cleaned up by now.
+    //check_for_leaks();
+    return 0;
+  }
+
+  int debugger_params_pipe[2];
+  /* if (pipe2(debugger_params_pipe, O_CLOEXEC)) { */
+  /*   FATAL() << "Couldn't open debugger params pipe."; */
+  /* } */
+  if (0 == (waiting_for_child = fork())) {
+    // Ensure only the parent has the read end of the pipe open. Then if
+    // the parent dies, our writes to the pipe will error out.
+    close(debugger_params_pipe[0]);
+
+    {
+      prctl(PR_SET_PDEATHSIG, SIGTERM, 0, 0, 0);
+
+      ScopedFd debugger_params_write_pipe(debugger_params_pipe[1]);
+      auto session = ReplaySession::create(trace_dir, session_flags(flags));
+      GdbServer::ConnectionFlags conn_flags;
+      conn_flags.dbg_port = flags.dbg_port;
+      conn_flags.dbg_host = flags.dbg_host;
+      conn_flags.debugger_params_write_pipe = &debugger_params_write_pipe;
+      conn_flags.serve_files = flags.serve_files;
+      if (target.event == -1 && target.pid == 0) {
+        // If `replay -e` is specified without a pid, go to the exit
+        // of the first process (rather than the first exit of a process).
+        target.pid = session->trace_reader().peek_frame().tid();
+      }
+      GdbServer server(session, target);
+
+      server_ptr = &server;
+      struct sigaction sa;
+      memset(&sa, 0, sizeof(sa));
+      sa.sa_flags = SA_RESTART;
+      sa.sa_handler = handle_SIGINT_in_child;
+      if (sigaction(SIGINT, &sa, nullptr)) {
+        FATAL() << "Couldn't set sigaction for SIGINT.";
+      }
+
+      server.serve_replay(conn_flags);
+    }
+    // Everything should have been cleaned up by now.
+    check_for_leaks();
+    return 0;
+  }
+  // Ensure only the child has the write end of the pipe open. Then if
+  // the child dies, our reads from the pipe will return EOF.
+  close(debugger_params_pipe[1]);
+  LOG(debug) << getpid() << ": forked debugger server " << waiting_for_child;
+
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_flags = SA_RESTART;
+  sa.sa_handler = handle_SIGINT_in_parent;
+  if (sigaction(SIGINT, &sa, nullptr)) {
+    FATAL() << "Couldn't set sigaction for SIGINT.";
+  }
+
+  {
+    ScopedFd params_pipe_read_fd(debugger_params_pipe[0]);
+    GdbServer::launch_gdb(params_pipe_read_fd, flags.gdb_binary_file_path,
+                          flags.gdb_options,
+                          flags.serve_files);
+  }
+
+  // Child must have died before we were able to get debugger parameters
+  // and exec gdb. Exit with the exit status of the child.
+  while (true) {
+    int status;
+    int ret = waitpid(waiting_for_child, &status, 0);
+    int err = errno;
+    LOG(debug) << getpid() << ": waitpid(" << waiting_for_child << ") returned "
+               << errno_name(err) << "(" << err << "); status:" << HEX(status);
+    if (waiting_for_child != ret) {
+      if (EINTR == err) {
+        continue;
+      }
+      FATAL() << getpid() << ": waitpid(" << waiting_for_child << ") failed";
+    }
+    if (WIFEXITED(status) || WIFSIGNALED(status)) {
+      LOG(info) << ("Debugger server died.  Exiting.");
+      exit(WIFEXITED(status) ? WEXITSTATUS(status) : 1);
+    }
+  }
+
+  return 0;
 }
+std::unique_ptr<BinaryInterface> new_binary_interface(int64_t target_event,rust::String trace_dir_rust) {
+  rr::ReplayFlags flags;// = replay_flags_to_cpp(rust_replay_flags);
+  flags.goto_event = 320;
+  /* flags.dont_launch_debugger = true; */
+  string trace_dir = std::string(trace_dir_rust);
+
+
+  GdbServer::Target target;
+  switch (flags.process_created_how) {
+    case ReplayFlags::CREATED_EXEC:
+      target.pid = flags.target_process;
+      target.require_exec = true;
+      break;
+    case ReplayFlags::CREATED_FORK:
+      target.pid = flags.target_process;
+      target.require_exec = false;
+      break;
+    case ReplayFlags::CREATED_NONE:
+      break;
+  }
+  target.event = flags.goto_event;
+  auto session = ReplaySession::create(trace_dir, session_flags(flags));
+  return std::unique_ptr<BinaryInterface>(new BinaryInterface(session, target));
+}
+void beta_test_me(){
+  cout << "BETA" << endl;
+  vector<string> args;
+  /* args.push_back("-g 1"); */
+  /* args.push_back("-a"); */
+  auto command = ReplayCommand::get();
+  command->run(args);
+}
+
+int start_replaying_2(ReplayFlags flags, string trace_dir){
+  if (!flags.target_command.empty()) {
+    flags.target_process =
+        find_pid_for_command(trace_dir, flags.target_command);
+    if (flags.target_process <= 0) {
+      fprintf(stderr, "No process '%s' found. Try 'rr ps'.\n",
+              flags.target_command.c_str());
+      return 2;
+    }
+  }
+  if (flags.process_created_how != ReplayFlags::CREATED_NONE) {
+    if (!pid_exists(trace_dir, flags.target_process)) {
+      fprintf(stderr, "No process %d found in trace. Try 'rr ps'.\n",
+              flags.target_process);
+      return 2;
+    }
+    if (flags.process_created_how == ReplayFlags::CREATED_EXEC &&
+        !pid_execs(trace_dir, flags.target_process)) {
+      fprintf(stderr, "Process %d never exec()ed. Try 'rr ps', or use "
+                      "'-f'.\n",
+              flags.target_process);
+      return 2;
+    }
+  }
+  if (flags.dump_interval > 0 && !flags.dont_launch_debugger) {
+    fprintf(stderr, "--stats requires -a\n");
+    // TODO ZACK:
+    //print_help(stderr);
+    return 2;
+  }
+
+  assert_prerequisites();
+
+  if (running_under_rr()) {
+    if (!Flags::get().suppress_environment_warnings) {
+      fprintf(stderr, "rr: rr pid %d running under parent %d. Good luck.\n",
+              getpid(), getppid());
+    }
+    if (trace_dir.empty()) {
+      fprintf(stderr,
+              "rr: No trace-dir supplied. You'll try to replay the "
+              "recording of this rr and have a bad time. Bailing out.\n");
+      return 3;
+    }
+  }
+
+  if (flags.keep_listening && flags.dbg_port == -1) {
+    fprintf(stderr,
+            "Cannot use --keep-listening (-k) without --dbgport (-s).\n");
+    return 4;
+  }
+
+  return replay(trace_dir, flags);
+}
+void gamma_test_me(){
+  cout << "GAMMA" << endl;
+  string trace_dir;
+  ReplayFlags flags;
+  
+  
+  start_replaying(flags, trace_dir);
+  //replay(trace_dir,flags);
+
+}
+void delta_test_me(){
+  cout << "DELTA" << endl;
+  /* vector<string> args; */
+  /* /1* args.push_back("-g 1"); *1/ */
+  /* /1* args.push_back("-a"); *1/ */
+  /* auto command = ReplayCommand::get(); */
+  /* command->run(args); */
+}
+
 /* void sayHi(){ */
 /* cout << "FUCK THIS INTEROP" << endl; */
 /* } */
