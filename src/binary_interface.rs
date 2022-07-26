@@ -31,7 +31,7 @@ pub mod binary_interface_ffi {
         pub fn new_binary_interface(goto_event: i64, trace_dir: String) -> UniquePtr<BinaryInterface>; 
         pub fn beta_test_me();
         pub fn gamma_test_me();
-        pub fn delta_test_me();
+        // pub fn delta_test_me();
         pub fn initialize(self: Pin<&mut BinaryInterface>) -> bool;
         pub fn current_frame_time(&self) -> i64;
         // pub fn get_thread_list(self: &BinaryInterface) -> Vec<GdbThreadId>;
@@ -60,6 +60,7 @@ mod tests {
     //   dbg!(thread);
     //   bin_interface.chicken_nuggs();
     // }
+    //
     #[test]
     #[serial]
     fn binary_interface_creation(){
@@ -76,11 +77,11 @@ mod tests {
       raise_resource_limits();
       gamma_test_me();
     }
-    #[test]
-    fn delta_test(){
-      raise_resource_limits();
-      delta_test_me();
-    }
+    // #[test]
+    // fn delta_test(){
+    //   raise_resource_limits();
+    //   delta_test_me();
+    // }
     #[test]
     #[serial]
     fn binary_interface_initialization(){
@@ -89,14 +90,18 @@ mod tests {
       dbg!(bin_i_1.current_frame_time());
       bin_i_1.pin_mut().initialize();
       dbg!(bin_i_1.current_frame_time());
-      // let mut bin_i_10 = new_binary_interface(10,"/home/zack/.local/share/rr/date_viewer-64".to_owned());
-      // dbg!(bin_i_10.current_frame_time());
-      // bin_i_10.pin_mut().initialize();
-      // dbg!(bin_i_10.current_frame_time());
-      // let mut bin_i_100 = new_binary_interface(100,"/home/zack/.local/share/rr/date_viewer-64".to_owned());
-      // dbg!(bin_i_100.current_frame_time());
-      // bin_i_100.pin_mut().initialize();
-      // dbg!(bin_i_100.current_frame_time());
+      let mut bin_i_10 = new_binary_interface(10,"/home/zack/.local/share/rr/date_viewer-64".to_owned());
+      dbg!(bin_i_10.current_frame_time());
+      bin_i_10.pin_mut().initialize();
+      dbg!(bin_i_10.current_frame_time());
+       let mut bin_i_100 = new_binary_interface(100,"/home/zack/.local/share/rr/date_viewer-64".to_owned());
+      dbg!(bin_i_100.current_frame_time());
+      bin_i_100.pin_mut().initialize();
+      dbg!(bin_i_100.current_frame_time());
+      let mut bin_i_300 = new_binary_interface(350,"/home/zack/.local/share/rr/date_viewer-64".to_owned());
+      dbg!(bin_i_300.current_frame_time());
+      bin_i_300.pin_mut().initialize();
+      dbg!(bin_i_300.current_frame_time());
       // assert_eq!()
     }
 }
