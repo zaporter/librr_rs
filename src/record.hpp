@@ -5,7 +5,6 @@
 #include <cstdint>
 
 #include "rust/cxx.h"
-#include "librr-rs/src/record.rs.h"
 
 #include "util.h"
 extern "C++" {
@@ -14,9 +13,9 @@ extern "C++" {
 }
 
 
+namespace rr {
+int record(rust::Vec<rust::String> args);
+/* RecordingFlags get_default_record_flags(); */
+/* RecordingFlags record_flags_pipe_test(RecordingFlags flags); */
 
-int record(rust::Vec<rust::String> args, RecordingFlags flags);
-RecordingFlags get_default_record_flags();
-RecordingFlags record_flags_pipe_test(RecordingFlags flags);
-
-
+} // end namespace rr

@@ -56,6 +56,14 @@ fn main() {
         .flag_if_supported("-std=c++14")
         .compile("librr-rs-librr");
 
+    cxx_build::bridge("src/record.rs")
+        .file("src/record.cpp")
+        .include("src")
+        .include("librr/src")
+        .include(format!("{}/build", dst.display()))
+        .flag_if_supported("-std=c++14")
+        .compile("librr-rs-record");
+
     cxx_build::bridge("src/replay.rs")
         .file("src/replay.cpp")
         .include("src")

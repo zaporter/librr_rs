@@ -45,63 +45,104 @@ pub use binary_interface_ffi::*;
 #[cfg(test)]
 mod tests {
     use crate::raise_resource_limits;
+    use crate::record_path_output;
     use serial_test::serial;
-
+    use std::{sync::Once, path::PathBuf};
+    use rand::prelude::*;
+    use gag::BufferRedirect;
+    use std::io::Read;
     use super::*;
+    static INIT: Once = Once::new();
 
-    // #[test]
-    // fn fuck_tsla(){
-    //   assert_eq!(5,1+4);
-    //   sayHi();
-    //   let bin_interface = new_binary_interface("/home/zack/.local/share/rr/DateTester-41".to_owned());
-    //   let threads = bin_interface.get_thread_list();
-    //   dbg!(threads);
-    //   let thread = bin_interface.get_current_thread();
-    //   dbg!(thread);
-    //   bin_interface.chicken_nuggs();
-    // }
-    //
+    fn initialize(){
+        INIT.call_once(|| {
+            raise_resource_limits();
+        }); 
+    }
+    fn create_sample_dateviewer_recording() -> PathBuf {
+        let exe_dir = std::env::current_dir().unwrap().join("test-executables").join("date_viewer");
+        let random_number: u64 = rand::thread_rng().gen();
+        let save_dir = std::env::temp_dir().join(random_number.to_string());
+        let mut output = String::new();
+        let mut stdout_buf = BufferRedirect::stdout().unwrap(); 
+        let ret_code = record_path_output(
+            exe_dir.into_os_string().into_string().unwrap(),
+            Some(vec![100_u32.to_string()]),
+            save_dir.clone().into_os_string().into_string().unwrap());
+        stdout_buf.read_to_string(&mut output).unwrap();
+        drop(stdout_buf);
+        assert!(output.contains("Started"));
+        assert!(output.contains("StartTime"));
+        assert!(output.contains("EndTime"));
+        assert!(output.contains("Finished"));
+        assert_eq!(ret_code,0);
+        save_dir
+    }
+
     #[test]
     #[serial]
     fn binary_interface_creation(){
-      raise_resource_limits();
-      let _bin_interface = new_binary_interface(0,"/home/zack/.local/share/rr/date_viewer-64".to_owned());
+      initialize();
+      let sample_dateviewer_dir = create_sample_dateviewer_recording();
+      let _bin_interface = new_binary_interface(0,sample_dateviewer_dir.into_os_string().into_string().unwrap());
     }
-    #[test]
-    fn beta_test(){
-      raise_resource_limits();
-      beta_test_me();
-    }
-    #[test]
-    fn gamma_test(){
-      raise_resource_limits();
-      gamma_test_me();
-    }
+    // TODO These tests are important. Please bring them back.
     // #[test]
-    // fn delta_test(){
+    // fn beta_test(){
     //   raise_resource_limits();
-    //   delta_test_me();
+    //   beta_test_me();
+    // }
+    // #[test]
+    // fn gamma_test(){
+    //   raise_resource_limits();
+    //   gamma_test_me();
     // }
     #[test]
     #[serial]
-    fn binary_interface_initialization(){
-      raise_resource_limits();
-      let mut bin_i_1 = new_binary_interface(0,"/home/zack/.local/share/rr/date_viewer-64".to_owned());
-      dbg!(bin_i_1.current_frame_time());
-      bin_i_1.pin_mut().initialize();
-      dbg!(bin_i_1.current_frame_time());
-      let mut bin_i_10 = new_binary_interface(10,"/home/zack/.local/share/rr/date_viewer-64".to_owned());
-      dbg!(bin_i_10.current_frame_time());
-      bin_i_10.pin_mut().initialize();
-      dbg!(bin_i_10.current_frame_time());
-       let mut bin_i_100 = new_binary_interface(100,"/home/zack/.local/share/rr/date_viewer-64".to_owned());
-      dbg!(bin_i_100.current_frame_time());
-      bin_i_100.pin_mut().initialize();
-      dbg!(bin_i_100.current_frame_time());
-      let mut bin_i_300 = new_binary_interface(350,"/home/zack/.local/share/rr/date_viewer-64".to_owned());
-      dbg!(bin_i_300.current_frame_time());
-      bin_i_300.pin_mut().initialize();
-      dbg!(bin_i_300.current_frame_time());
-      // assert_eq!()
+    fn binary_interface_initialization_dateviewer_0(){
+      initialize();
+      let sample_dateviewer_dir = create_sample_dateviewer_recording();
+      let mut bin_interface = new_binary_interface(0,sample_dateviewer_dir.into_os_string().into_string().unwrap());
+      assert_eq!(bin_interface.current_frame_time(),1);
+      let mut output = String::new();
+      let mut stdout_buf = BufferRedirect::stdout().unwrap(); 
+      bin_interface.pin_mut().initialize();
+      stdout_buf.read_to_string(&mut output).unwrap();
+      drop(stdout_buf);
+      assert!(!output.contains("Started"));
+      assert!(bin_interface.current_frame_time() >= 1);
+    }
+    #[test]
+    #[serial]
+    fn binary_interface_initialization_dateviewer_660(){
+      initialize();
+      let sample_dateviewer_dir = create_sample_dateviewer_recording();
+      let mut bin_interface = new_binary_interface(660,sample_dateviewer_dir.into_os_string().into_string().unwrap());
+      assert_eq!(bin_interface.current_frame_time(),1);
+      let mut output = String::new();
+      let mut stdout_buf = BufferRedirect::stdout().unwrap(); 
+      bin_interface.pin_mut().initialize();
+      stdout_buf.read_to_string(&mut output).unwrap();
+      drop(stdout_buf);
+      assert!(output.contains("Started"));
+      assert!(!output.contains("Finished"));
+      assert!(bin_interface.current_frame_time() >= 660);
+    }
+    #[test]
+    #[serial]
+    fn binary_interface_initialization_dateviewer_1000(){
+      initialize();
+      let sample_dateviewer_dir = create_sample_dateviewer_recording().into_os_string().into_string().unwrap();
+      let mut bin_interface = new_binary_interface(1000,sample_dateviewer_dir);
+      assert_eq!(bin_interface.current_frame_time(),1);
+      let mut output = String::new();
+      let mut stdout_buf = BufferRedirect::stdout().unwrap(); 
+      bin_interface.pin_mut().initialize();
+      stdout_buf.read_to_string(&mut output).unwrap();
+      drop(stdout_buf);
+      assert!(output.contains("Started"));
+      assert!(output.contains("Finished"));
+      dbg!(bin_interface.current_frame_time());
+      assert!(bin_interface.current_frame_time() >= 660);
     }
 }

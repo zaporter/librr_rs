@@ -65,11 +65,6 @@ mod tests {
     use super::*;
     use serial_test::serial;
 
-    #[test]
-    fn replay_flags_fuck2(){
-        printmyval();
-        
-    }
     // #[test]
     // #[serial]
     // fn replay_controller_setup(){

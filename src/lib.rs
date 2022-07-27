@@ -1,6 +1,7 @@
 //TODO:
 //Use throw catch to return Result<> types instead of c style return codes.
 mod librr;
+mod record;
 mod binary_interface;
 mod replay;
 
@@ -9,6 +10,7 @@ mod bindgen;
 
 
 pub use librr::*;
+pub use record::*;
 pub use binary_interface::*;
 pub use replay::*;
 

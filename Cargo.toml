@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 cxx = "1.0"
 serial_test = "0.8.0"
+rand = "0.8.5"
+gag = "1.0.0"
 
 [build-dependencies]
 cxx-build = "1.0"

@@ -1,4 +1,4 @@
-#[cxx::bridge]
+#[cxx::bridge(namespace="rr")]
 pub mod recordffi {
     //pub struct DisableCPUIDFeatures {
     //    features_ecx : u32,
@@ -55,15 +55,80 @@ pub mod recordffi {
     unsafe extern "C++" {
         include!("librr-rs/src/record.hpp");
         // pub fn get_default_record_flags() -> RecordingFlags;
-        // pub fn record(args : Vec<String>, flags : RecordingFlags) -> i32;
+        pub fn record(args : Vec<String>) -> i32;
         // fn record_flags_pipe_test(flags : RecordingFlags) -> RecordingFlags;
     }
+}
+pub fn record_path_output(executable:String, executable_args: Option<Vec<String>>,output_dir:String)->i32{
+    let mut args = vec!["--output-trace-dir".to_owned(), output_dir,executable];
+    if let Some(mut exe_args) = executable_args{
+        args.append(&mut exe_args);
+    }
+    record(args)
 }
 pub use recordffi::*;
 
 #[cfg(test)]
 mod tests {
+    use crate::raise_resource_limits;
+    use serial_test::serial;
+    use std::sync::Once;
+    use rand::prelude::*;
+    use gag::BufferRedirect;
+    use std::io::Read;
     use super::*;
+    static INIT: Once = Once::new();
+
+    fn initialize(){
+        INIT.call_once(|| {
+            raise_resource_limits();
+        }); 
+    }
+
+    #[test]
+    #[serial]
+    fn basic_record_dateviewer(){
+        initialize();
+        let exe_dir = std::env::current_dir().unwrap().join("test-executables").join("date_viewer");
+        let random_number: u64 = rand::thread_rng().gen();
+        let save_dir = std::env::temp_dir().join(random_number.to_string());
+        let mut output = String::new();
+        let mut stdout_buf = BufferRedirect::stdout().unwrap(); 
+        let ret_code = record_path_output(
+            exe_dir.into_os_string().into_string().unwrap(),
+            None,
+            save_dir.into_os_string().into_string().unwrap());
+        stdout_buf.read_to_string(&mut output).unwrap();
+        drop(stdout_buf);
+        assert!(output.contains("Started"));
+        assert!(output.contains("StartTime"));
+        assert!(!output.contains("EndTime"));
+        assert!(output.contains("Finished"));
+        assert_eq!(ret_code,0);
+    }
+
+    #[test]
+    #[serial]
+    fn basic_record_dateviewer_args(){
+        initialize();
+        let exe_dir = std::env::current_dir().unwrap().join("test-executables").join("date_viewer");
+        let random_number: u64 = rand::thread_rng().gen();
+        let save_dir = std::env::temp_dir().join(random_number.to_string());
+        let mut output = String::new();
+        let mut stdout_buf = BufferRedirect::stdout().unwrap(); 
+        let ret_code = record_path_output(
+            exe_dir.into_os_string().into_string().unwrap(),
+            Some(vec![100_u32.to_string()]),
+            save_dir.into_os_string().into_string().unwrap());
+        stdout_buf.read_to_string(&mut output).unwrap();
+        drop(stdout_buf);
+        assert!(output.contains("Started"));
+        assert!(output.contains("StartTime"));
+        assert!(output.contains("EndTime"));
+        assert!(output.contains("Finished"));
+        assert_eq!(ret_code,0);
+    }
+
     // #[test]
     // fn record_flags_defaults(){
     //     let flags = get_default_record_flags();
