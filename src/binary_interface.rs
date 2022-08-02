@@ -31,13 +31,20 @@ pub mod binary_interface_ffi {
         pub fn new_binary_interface(goto_event: i64, trace_dir: String) -> UniquePtr<BinaryInterface>; 
         pub fn beta_test_me();
         pub fn gamma_test_me();
+        
         // pub fn delta_test_me();
         pub fn initialize(self: Pin<&mut BinaryInterface>) -> bool;
         pub fn current_frame_time(&self) -> i64;
         // pub fn get_thread_list(self: &BinaryInterface) -> Vec<GdbThreadId>;
-        // pub fn get_current_thread(self: &BinaryInterface) -> GdbThreadId;
+        pub fn get_current_thread(self: &BinaryInterface) -> GdbThreadId;
         // pub fn get_regs(self: &BinaryInterface, tid: i32) -> Vec<GdbRegisterValue>;
         // pub fn get_exec_file(self: &BinaryInterface, request_target : GdbThreadId) -> String;
+        pub fn get_thread_list_from_rust(interface: &BinaryInterface) -> Vec<GdbThreadId>;
+    }
+}
+impl BinaryInterface {
+    pub fn get_thread_list(&self)->Vec<GdbThreadId>{
+        get_thread_list_from_rust(&self)
     }
 }
 pub use binary_interface_ffi::*;
@@ -77,6 +84,20 @@ mod tests {
         assert!(output.contains("Finished"));
         assert_eq!(ret_code,0);
         save_dir
+    }
+
+    
+    #[test]
+    #[serial]
+    fn thread_list_test(){
+        initialize();
+          let sample_dateviewer_dir = create_sample_dateviewer_recording();
+          let mut bin_interface = new_binary_interface(0,sample_dateviewer_dir.into_os_string().into_string().unwrap());
+          assert_eq!(bin_interface.current_frame_time(),1);
+          bin_interface.pin_mut().initialize();
+        println!("Hi!");
+        let list = bin_interface.get_thread_list();
+        dbg!(list);
     }
 
     #[test]
@@ -144,5 +165,15 @@ mod tests {
       assert!(output.contains("Finished"));
       dbg!(bin_interface.current_frame_time());
       assert!(bin_interface.current_frame_time() >= 660);
+    }
+    #[test]
+    #[serial]
+    fn binary_interface_get_current_thread(){
+      initialize();
+      let sample_dateviewer_dir = create_sample_dateviewer_recording().into_os_string().into_string().unwrap();
+      let mut bin_interface = new_binary_interface(500,sample_dateviewer_dir);
+      bin_interface.pin_mut().initialize();
+      dbg!(bin_interface.get_current_thread());
+
     }
 }

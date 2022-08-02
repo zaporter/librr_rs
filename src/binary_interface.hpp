@@ -29,4 +29,5 @@
 
 namespace rr {
 std::unique_ptr<BinaryInterface> new_binary_interface(int64_t,rust::String);
+rust::Vec<GdbThreadId> get_thread_list_from_rust(const BinaryInterface&);
 } // end namespace rr

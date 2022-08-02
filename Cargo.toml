@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+autocxx = "0.22"
 cxx = "1.0"
 serial_test = "0.8.0"
 rand = "0.8.5"
