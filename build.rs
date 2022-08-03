@@ -48,6 +48,7 @@ fn main() {
         let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
         bindings.write_to_file(out_dir.join("taskishuid-bindings.rs")).expect("Couldn't write bindings!");
     }
+
     cxx_build::bridge("src/librr.rs")
         .file("src/librr.cpp")
         .include("src")

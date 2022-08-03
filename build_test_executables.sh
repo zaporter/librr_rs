@@ -12,3 +12,4 @@ build_executable()
 
 }
 build_executable date_viewer
+build_executable many_threads

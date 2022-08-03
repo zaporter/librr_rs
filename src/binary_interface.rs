@@ -1,6 +1,13 @@
 use cxx::UniquePtr;
 
 use cxx::{type_id, ExternType};
+
+autocxx::include_cpp! {
+    #include "binary_interface.hpp"
+    generate!("rr::ReplayResult")
+    safety!(unsafe_ffi)
+}
+
 unsafe impl ExternType for crate::bindgen::gdbconnection::rr_GdbThreadId {
     type Id = type_id!("rr::GdbThreadId");
     type Kind = cxx::kind::Trivial;
@@ -67,7 +74,7 @@ mod tests {
         }); 
     }
     fn create_sample_dateviewer_recording() -> PathBuf {
-        let exe_dir = std::env::current_dir().unwrap().join("test-executables").join("date_viewer");
+        let exe_dir = std::env::current_dir().unwrap().join("test-executables/build").join("date_viewer");
         let random_number: u64 = rand::thread_rng().gen();
         let save_dir = std::env::temp_dir().join(random_number.to_string());
         let mut output = String::new();

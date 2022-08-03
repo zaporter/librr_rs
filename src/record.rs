@@ -89,7 +89,7 @@ mod tests {
     #[serial]
     fn basic_record_dateviewer(){
         initialize();
-        let exe_dir = std::env::current_dir().unwrap().join("test-executables").join("date_viewer");
+        let exe_dir = std::env::current_dir().unwrap().join("test-executables/build").join("date_viewer");
         let random_number: u64 = rand::thread_rng().gen();
         let save_dir = std::env::temp_dir().join(random_number.to_string());
         let mut output = String::new();
@@ -111,7 +111,7 @@ mod tests {
     #[serial]
     fn basic_record_dateviewer_args(){
         initialize();
-        let exe_dir = std::env::current_dir().unwrap().join("test-executables").join("date_viewer");
+        let exe_dir = std::env::current_dir().unwrap().join("test-executables/build").join("date_viewer");
         let random_number: u64 = rand::thread_rng().gen();
         let save_dir = std::env::temp_dir().join(random_number.to_string());
         let mut output = String::new();
