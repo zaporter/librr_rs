@@ -13,6 +13,14 @@ std::unique_ptr<BinaryInterface> new_binary_interface(int64_t target_event,rust:
   std::string trace_dir = std::string(trace_dir_rust);
   return new_binary_interface_librr(target_event,trace_dir);
 }
+rust::Vec<GdbRegisterValue> rstrans_get_regs(const BinaryInterface& interface){
+  rust::Vec<GdbRegisterValue> regs;
+  auto cpp_regs = interface.get_regs();
+  for (auto reg : cpp_regs){
+    regs.push_back(reg);
+  }
+  return regs;
+}
 rust::Vec<GdbThreadId> get_thread_list_from_rust(const BinaryInterface& interface){
   rust::Vec<GdbThreadId> tids;
   auto cpp_tids = interface.get_thread_list();

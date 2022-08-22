@@ -5,22 +5,37 @@ use std::env;
 use std::path::PathBuf;
 use cmake::Config;
 
-fn main() {
+fn main() -> miette::Result<()>{
 
     println!("cargo:rerun-if-changed=librr/src/*.h");
     println!("cargo:rerun-if-changed=librr/src/*.cc");
     println!("cargo:rerun-if-changed=src/*.hpp");
     println!("cargo:rerun-if-changed=src/*.cpp");
+    println!("cargo:rerun-if-changed=src/*.rs");
     println!("cargo:rerun-if-changed=build.rs");
 
+
+
     let dst = Config::new("librr").build();       
+
+    //let path = std::path::PathBuf::from("src"); // include path
+    //let path2  = std::path::PathBuf::from(format!("{}/build",dst.display()));
+    //let mut b = autocxx_build::Builder::new("src/binary_interface.rs", &[&path,&path2, &dst]).build()?;
+    //b
+    //    .include("src")
+    //    .include("librr/src")
+    //    .include(format!("{}/build", dst.display()))
+    //    .flag_if_supported("-std=c++14")
+    //    .compile("autocxx-demo"); // arbitrary library name, pick anything
+    //                           //
     {   
         let bindings = bindgen::Builder::default()
             .header("librr/src/GdbConnection.h")
             .allowlist_type("rr::GdbRegisterValue")
             .allowlist_type("rr::GdbThreadId")
-            .newtype_enum("rr::GdbRegister")
+            .rustified_enum("rr::GdbRegister")
             .generate_comments(true)
+            .derive_debug(true)
             .derive_default(true)
             .translate_enum_integer_types(true)
             .parse_callbacks(Box::new(bindgen::CargoCallbacks))
@@ -90,4 +105,5 @@ fn main() {
     println!("cargo:rustc-link-lib=rrpage");   
     println!("cargo:rustc-link-lib=rr");   
     println!("cargo:rustc-link-lib=rraudit");   
+    Ok(())
 }
