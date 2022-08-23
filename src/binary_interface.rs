@@ -1,17 +1,14 @@
-use std::u128;
-use std::fmt::Formatter;
-use std::fmt::Error;
-use std::fmt::Debug;
-use cxx::UniquePtr;
+use std::pin::Pin;
+use cxx::private::VectorElement;
+use cxx::{type_id, ExternType, CxxString, CxxVector, UniquePtr};
 
-use cxx::{type_id, ExternType, CxxString, CxxVector};
-use autocxx::prelude::*;
-
+// use autocxx::prelude::*;
 // autocxx::include_cpp! {
 //     // #include "src/binary_interface.hpp"
 //     generate!("rr::ReplayResult")
 //     safety!(unsafe_ffi)
 // }
+//
 
 unsafe impl ExternType for crate::bindgen::gdbconnection::rr_GdbThreadId {
     type Id = type_id!("rr::GdbThreadId");
@@ -24,6 +21,8 @@ unsafe impl ExternType for crate::bindgen::gdbconnection::rr_GdbRegisterValue {
 
 #[cxx::bridge(namespace="rr")]
 pub mod binary_interface_ffi {
+
+
     unsafe extern "C++" {
         include!("librr-rs/src/binary_interface.hpp");
         type GdbThreadId = crate::bindgen::gdbconnection::rr_GdbThreadId;
@@ -32,6 +31,7 @@ pub mod binary_interface_ffi {
 
     impl Vec<GdbThreadId>{}
     impl Vec<GdbRegisterValue>{}
+    impl CxxVector<GdbRegisterValue>{}
 
     unsafe extern "C++" {
 
@@ -46,26 +46,41 @@ pub mod binary_interface_ffi {
         // pub fn set_software_breakpoint(self : Pin<&mut BinaryInterface>, tid:Option<GdbThreadId>) -> i32;
         // pub fn get_thread_list(self: &BinaryInterface) -> Vec<GdbThreadId>;
         pub fn get_current_thread(self: &BinaryInterface) -> GdbThreadId;
-        pub fn get_auxv(self: &BinaryInterface, thread:GdbThreadId) -> &CxxVector<u8>;
+        #[rust_name="get_auxv_internal"]
+        fn get_auxv(self: &BinaryInterface, thread:GdbThreadId) -> &CxxVector<u8>;
         // pub fn get_regs(self: &BinaryInterface, tid: i32) -> Vec<GdbRegisterValue>;
         // pub fn get_exec_file(self: &BinaryInterface, request_target : GdbThreadId) -> String;
-        pub fn rstrans_get_regs(interface: &BinaryInterface) -> Vec<GdbRegisterValue>;
+        #[rust_name="get_regs_internal"]
+        fn get_regs(&self) -> &CxxVector<GdbRegisterValue>;
+
         pub fn get_thread_list_from_rust(interface: &BinaryInterface) -> Vec<GdbThreadId>;
     }
 }
-fn extract_vec(vec: &CxxVector<u8>) -> Vec<u8> {
-    vec.iter().map(|val| val.to_owned()).collect()
+macro_rules! translated_vec {
+    ($func_name:ident, $func_name_internal:ident, $internal:ty $(,$param:ident: $param_type:ty)*) => {
+        pub fn $func_name (self: &BinaryInterface $(,$param: $param_type)*) -> Vec<$internal> {
+            extract_vec::<$internal>(self.$func_name_internal($($param),*))
+        }
+    };
+}
+impl BinaryInterface {
+    translated_vec!(get_auxv, get_auxv_internal, u8, thread:GdbThreadId);
+    translated_vec!(get_regs, get_regs_internal, GdbRegisterValue);
+}
+fn extract_vec<T>(vec: &CxxVector<T>) -> Vec<T> where T : VectorElement +Clone{
+    vec.iter().cloned().collect()
 }
 impl BinaryInterface {
     pub fn get_thread_list(&self)->Vec<GdbThreadId>{
         get_thread_list_from_rust(self)
     }
-    pub fn get_regs(&self)->Vec<GdbRegisterValue>{
-        rstrans_get_regs(self)
-    }
 }
 pub use binary_interface_ffi::*;
 
+custom_derive! {
+    #[derive(NewtypeFrom, NewtypeDeref,NewtypeDerefMut)]
+    pub struct BinInterface(UniquePtr<BinaryInterface>);
+}
 
 
 #[cfg(test)]
@@ -114,14 +129,18 @@ mod tests {
           let mut bin_interface = new_binary_interface(0,sample_dateviewer_dir.into_os_string().into_string().unwrap());
           assert_eq!(bin_interface.current_frame_time(),1);
           bin_interface.pin_mut().initialize();
-        println!("Hi!");
         let list = bin_interface.get_thread_list();
+        // This sample program has exactly 1 thread
+        assert!(list.len()==1);
+        // TODO assert that this contains the current thread
+        // TODO create a test that has lots of threads and then ensure that it has N threads in the
+        // thread list
         dbg!(list);
     }
     
     #[test]
     #[serial]
-    fn register_list_test(){
+    fn get_register_list_test(){
         initialize();
           let sample_dateviewer_dir = create_sample_dateviewer_recording();
           let mut bin_interface = new_binary_interface(50,sample_dateviewer_dir.into_os_string().into_string().unwrap());
@@ -217,13 +236,32 @@ mod tests {
     }
     #[test]
     #[serial]
+    fn binary_interface_pincell(){
+      initialize();
+      let sample_dateviewer_dir = create_sample_dateviewer_recording().into_os_string().into_string().unwrap();
+      let mut bin_interface = new_binary_interface(500,sample_dateviewer_dir);
+      // let mut pcell = PinCell::new(bin_interface);
+      let mut k = BinInterface::from(bin_interface);
+      k.pin_mut().initialize();
+      // let thread = bin_interface.get_current_thread();
+      // assert!(thread.pid > 0);
+      // assert!(thread.tid == thread.pid);
+      // dbg!(bin_interface.get_current_thread());
+
+    }
+    #[test]
+    #[serial]
     fn binary_interface_get_auxv(){
       initialize();
       let sample_dateviewer_dir = create_sample_dateviewer_recording().into_os_string().into_string().unwrap();
       let mut bin_interface = new_binary_interface(500,sample_dateviewer_dir);
       bin_interface.pin_mut().initialize();
       let thread = bin_interface.get_current_thread();
-      let auxv = extract_vec(bin_interface.get_auxv(thread));
+      let auxv = bin_interface.get_auxv(thread);
+      // TODO: Put a real test here.
+      assert!(auxv.contains(&0));
+      assert!(auxv.len()>50);
+      assert!(auxv.len()<1000);
       dbg!(auxv);
     }
 }

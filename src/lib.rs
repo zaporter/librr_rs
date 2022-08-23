@@ -1,6 +1,5 @@
-//TODO:
-//Use throw catch to return Result<> types instead of c style return codes.
-
+#[macro_use] extern crate custom_derive;
+#[macro_use] extern crate newtype_derive;
 
 
 mod librr;

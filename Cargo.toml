@@ -9,6 +9,8 @@ cxx = "1.0"
 serial_test = "0.8.0"
 rand = "0.8.5"
 gag = "1.0.0"
+custom_derive="0.1"
+newtype_derive = "0.1"
 
 [build-dependencies]
 cxx-build = "1.0"
