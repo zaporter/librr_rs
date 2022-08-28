@@ -11,6 +11,7 @@ rand = "0.8.5"
 gag = "1.0.0"
 custom_derive="0.1"
 newtype_derive = "0.1"
+object="0.29"
 
 [build-dependencies]
 cxx-build = "1.0"
