@@ -53,7 +53,7 @@ pub mod recordffi {
     //}
 
     unsafe extern "C++" {
-        include!("librr-rs/src/record.hpp");
+        include!("librr_rs/src/record.hpp");
         // pub fn get_default_record_flags() -> RecordingFlags;
         pub fn record(args : Vec<String>) -> i32;
         // fn record_flags_pipe_test(flags : RecordingFlags) -> RecordingFlags;

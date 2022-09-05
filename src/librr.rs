@@ -2,7 +2,7 @@
 pub mod librrffi {
     #[namespace = "rr"]
     unsafe extern "C++" {
-        include!("librr-rs/src/librr.hpp");
+        include!("librr_rs/src/librr.hpp");
         pub fn page_size() -> usize;
         pub fn raise_resource_limits();
         pub fn assert_prerequisites(use_syscall_buffer : bool);

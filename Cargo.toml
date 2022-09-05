@@ -1,7 +1,8 @@
 [package]
-name = "librr-rs"
+name = "librr_rs"
 version = "0.1.0"
 edition = "2021"
+crate-type = "rlib"
 
 [dependencies]
 autocxx = "0.22"
@@ -12,6 +13,9 @@ gag = "1.0.0"
 custom_derive="0.1"
 newtype_derive = "0.1"
 object="0.29"
+symbolic={version="9.1",features=["demangle"]}
+symbolic-demangle={version="9.1", features=["rust", "cpp", "msvc"]}
+symbolic-common={version="9.1"}
 procmaps = {git = "https://github.com/zaporter/procmaps"}
 
 [build-dependencies]

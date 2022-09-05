@@ -35,7 +35,7 @@ pub mod replayffi {
 
     }
     unsafe extern "C++" {
-        include!("librr-rs/src/replay.hpp");
+        include!("librr_rs/src/replay.hpp");
         pub fn replay(flags : ReplayingFlags, tracedir : String) -> i32;
         pub fn get_default_replay_flags() -> ReplayingFlags;
         pub fn printmyval();
@@ -43,7 +43,7 @@ pub mod replayffi {
     }
     #[namespace = "rr" ]
     unsafe extern "C++" {
-        include!("librr-rs/src/replay.hpp");
+        include!("librr_rs/src/replay.hpp");
 
         type ReplayController;
         fn print_test_controller(&self);

@@ -6,6 +6,8 @@ use object::{
 use std::error::Error;
 use std::path::PathBuf;
 use std::pin::Pin;
+use symbolic_common::{Language, Name};
+use symbolic_demangle::{Demangle, DemangleOptions};
 
 unsafe impl ExternType for crate::bindgen::gdbconnection::rr_GdbThreadId {
     type Id = type_id!("rr::GdbThreadId");
@@ -32,7 +34,7 @@ unsafe impl ExternType for crate::bindgen::gdbconnection::rr_GdbActionType {
 mod ffi {
 
     unsafe extern "C++" {
-        include!("librr-rs/src/binary_interface.hpp");
+        include!("librr_rs/src/binary_interface.hpp");
         type GdbThreadId = crate::bindgen::gdbconnection::rr_GdbThreadId;
         type GdbRegisterValue = crate::bindgen::gdbconnection::rr_GdbRegisterValue;
         type GdbRegister = crate::bindgen::gdbconnection::rr_GdbRegister;
@@ -48,7 +50,7 @@ mod ffi {
 
         #[rust_name = "InterfaceRef"]
         type BinaryInterface;
-        include!("librr-rs/src/binary_interface.hpp");
+        include!("librr_rs/src/binary_interface.hpp");
         pub fn new_binary_interface(goto_event: i64, trace_dir: String) -> UniquePtr<InterfaceRef>;
         pub fn initialize(self: Pin<&mut InterfaceRef>) -> bool;
         pub fn current_frame_time(&self) -> i64;
@@ -67,6 +69,9 @@ mod ffi {
         pub fn setfs_pid(self: Pin<&mut InterfaceRef>, pid: i64);
         #[rust_name = "set_symbol_internal"]
         fn set_symbol(self: Pin<&mut InterfaceRef>, name: &CxxString, address: usize) -> bool;
+        #[rust_name = "get_exec_file_internal"]
+        fn get_exec_file(&self) -> &CxxString;
+
         #[rust_name = "file_read_internal"]
         fn file_read<'a>(
             self: Pin<&'a mut InterfaceRef>,
@@ -121,6 +126,10 @@ impl InterfaceRef {
         get_thread_extra_info_internal,
         extract_str<()> -> String,
         thread:GdbThreadId);
+    extracted_fn!(get_exec_file,
+        get_exec_file_internal,
+        extract_str<()> -> String);
+
     extracted_fn!(get_register,
         get_register_internal,
         extract_clone<GdbRegisterValue> -> GdbRegisterValue,
@@ -250,8 +259,9 @@ mod tests {
     #[serial]
     fn file_read_test() {
         initialize();
-        let sample_dateviewer_dir =
-            PathBuf::from_str("/home/zack/.local/share/rr/DateTester-44/").unwrap();
+        let sample_dateviewer_dir = create_sample_dateviewer_recording();
+        // let sample_dateviewer_dir =
+        //     PathBuf::from_str("/home/zack/.local/share/rr/date_viewer-94").unwrap();
         let mut bin_interface = BinaryInterface::new_at_target_event(0, sample_dateviewer_dir);
 
         let mut found_mapping = false;
@@ -275,20 +285,38 @@ mod tests {
 
         assert!(found_mapping);
         let symbol_file =
-            "/home/zack/.local/share/rr/DateTester-44/mmap_hardlink_4_DateTester".to_owned();
+            bin_interface.get_exec_file();
+        dbg!(&symbol_file);
+
+            //"/home/zack/.local/share/rr/DateTester-44/mmap_hardlink_4_DateTester".to_owned();
         let symbol_str = std::fs::read(symbol_file).unwrap();
         let obj_file = object::File::parse(&*symbol_str).unwrap();
-        let mut main_addr = 0;
+        let mut possible_mains = Vec::new();
         for symbol in obj_file.symbol_table().unwrap().symbols() {
-            println!("Name: {}", symbol.name().unwrap());
-            if symbol.name().unwrap() == "main" {
-                main_addr = symbol.address();
+            // println!("Name: {}", symbol.name().unwrap());
+            if symbol.name().unwrap().contains("main") {
+                let name : String = Name::from(symbol.name().unwrap()).try_demangle(DemangleOptions::name_only()).to_string();
+                possible_mains.push((name, symbol.address() as usize));
             }
         }
+        // for (name,addr) in possible_mains {
+        //     dbg!(&name);
+
+
+        // }
+        let main_addr = possible_mains.into_iter().filter(|k| k.0 == "date_viewer::main").next().unwrap().1;
         dbg!(main_addr);
-        assert!(bin_interface.pin_mut().set_sw_breakpoint(0x55dc6aaf2820, 1));
-        assert!(bin_interface.pin_mut().set_sw_breakpoint(0x55dc6aaf28f0, 1));
-        assert!(bin_interface.pin_mut().set_sw_breakpoint(0x7f2ae7ef1300, 1));
+        let addr_1 = 94397935460352 as usize;
+        let addr_2 = 94397935484928 as usize;
+        let addr_3 = 94397935722496 as usize;
+        let addr_4 = 94397935783936 as usize;
+
+        dbg!(bin_interface.pin_mut().set_sw_breakpoint(addr_1+main_addr, 1));
+        dbg!(bin_interface.pin_mut().set_sw_breakpoint(addr_2+main_addr, 1));
+        dbg!(bin_interface.pin_mut().set_sw_breakpoint(addr_3+main_addr, 1));
+        dbg!(bin_interface.pin_mut().set_sw_breakpoint(addr_4+main_addr, 1));
+        // assert!(bin_interface.pin_mut().set_sw_breakpoint(0x55dc6aaf28f0, 1));
+        // assert!(bin_interface.pin_mut().set_sw_breakpoint(0x7f2ae7ef1300, 1));
         bin_interface.set_pass_signals(vec![
             0xe, 0x14, 0x17, 0x1a, 0x1b, 0x1c, 0x21, 0x24, 0x25, 0x2c, 0x4c, 0x97,
         ]);
@@ -314,6 +342,7 @@ mod tests {
                 .get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread());
             dbg!(eip);
         }
+        dbg!(bin_interface.get_exec_file());
     }
 
     #[test]
@@ -375,7 +404,6 @@ mod tests {
         //bin_interface.pin_mut().continue_forward()
     }
     #[test]
-    #[ignore]
     #[serial]
     fn software_breakpoint_test() {
         initialize();
@@ -384,7 +412,8 @@ mod tests {
         // on x86, this should always be set to 1.
         // dbg!(bin_interface.pin_mut().set_sw_breakpoint(1<<50,1));
         dbg!(bin_interface.get_register(GdbRegister::DREG_EIP, bin_interface.get_current_thread()));
-        assert!(bin_interface.pin_mut().set_sw_breakpoint(93941903268112, 1));
+        dbg!(bin_interface.get_exec_file());
+        // assert!(bin_interface.pin_mut().set_sw_breakpoint(93941903268112, 1));
         // continue
         // EDX = 63
         // EBX = 0

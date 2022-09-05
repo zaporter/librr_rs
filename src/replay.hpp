@@ -40,7 +40,7 @@ private:
 // I know that this is bad practice.
 // I have this here because replay.rs.h requires ReplayController to be defined
 // If you have a better way of solving this, please let me know.
-#include "librr-rs/src/replay.rs.h"
+#include "librr_rs/src/replay.rs.h"
 
 
 int replay(ReplayingFlags flags, rust::String tracedir);
