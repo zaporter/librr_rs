@@ -12,7 +12,9 @@ use std::fmt::Formatter;
 use std::fmt::Error;
 use std::fmt::Debug;
 use cxx::UniquePtr;
-use crate::bindgen::gdbconnection::rr_GdbRegisterValue;
+pub use crate::bindgen::gdbconnection::rr_GdbRegisterValue;
+pub use crate::bindgen::gdbconnection::rr_GdbThreadId_ANY;
+pub use crate::bindgen::gdbconnection::rr_GdbThreadId_ALL;
 
 impl rr_GdbRegisterValue{
     pub fn get_value_u128(&self) -> u128 {

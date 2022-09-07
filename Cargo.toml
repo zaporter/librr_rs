@@ -2,7 +2,7 @@
 name = "librr_rs"
 version = "0.1.0"
 edition = "2021"
-crate-type = "rlib"
+crate-type = "staticlib"
 
 [dependencies]
 autocxx = "0.22"

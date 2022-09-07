@@ -8,13 +8,14 @@ mod binary_interface;
 mod replay;
 
 #[allow(warnings)]
-mod bindgen;
+pub mod bindgen;
 
 
 pub use librr::*;
 pub use record::*;
 pub use binary_interface::*;
 pub use replay::*;
+pub use bindgen::*;
 
 #[cfg(test)]
 mod tests {

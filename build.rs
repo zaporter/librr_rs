@@ -7,12 +7,12 @@ use cmake::Config;
 
 fn main() -> miette::Result<()>{
 
-    println!("cargo:rerun-if-changed=librr/src/*.h");
-    println!("cargo:rerun-if-changed=librr/src/*.cc");
-    println!("cargo:rerun-if-changed=src/*.hpp");
-    println!("cargo:rerun-if-changed=src/*.cpp");
-    println!("cargo:rerun-if-changed=src/*.rs");
-    println!("cargo:rerun-if-changed=build.rs");
+    // println!("cargo:rerun-if-changed=librr/src/*.h");
+    // println!("cargo:rerun-if-changed=librr/src/*.cc");
+    // println!("cargo:rerun-if-changed=src/*.hpp");
+    // println!("cargo:rerun-if-changed=src/*.cpp");
+    // println!("cargo:rerun-if-changed=src/*.rs");
+    // println!("cargo:rerun-if-changed=build.rs");
 
 
 

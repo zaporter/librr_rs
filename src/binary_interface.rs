@@ -64,8 +64,12 @@ mod ffi {
         #[rust_name = "get_regs_internal"]
         fn get_regs(&self) -> &CxxVector<GdbRegisterValue>;
         pub fn set_sw_breakpoint(self: Pin<&mut InterfaceRef>, addr: usize, kind: i32) -> bool;
+        pub fn remove_sw_breakpoint(self: Pin<&mut InterfaceRef>, addr: usize, kind: i32) -> bool;
         pub fn get_thread_list_from_rust(interface: &InterfaceRef) -> Vec<GdbThreadId>;
         pub fn continue_forward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> bool;
+        pub fn continue_backward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> bool;
+        pub fn set_continue_thread(self: Pin<&mut InterfaceRef>, tid: GdbThreadId) -> bool;
+        pub fn set_query_thread(self: Pin<&mut InterfaceRef>, tid: GdbThreadId) -> bool;
         pub fn setfs_pid(self: Pin<&mut InterfaceRef>, pid: i64);
         #[rust_name = "set_symbol_internal"]
         fn set_symbol(self: Pin<&mut InterfaceRef>, name: &CxxString, address: usize) -> bool;
@@ -81,6 +85,7 @@ mod ffi {
         ) -> &'a CxxVector<u8>;
         pub fn add_pass_signal(self: Pin<&mut InterfaceRef>, signal: i32);
         pub fn clear_pass_signals(self: Pin<&mut InterfaceRef>);
+        pub fn has_breakpoint_at_address(&self, tuid: GdbThreadId, addr: usize) -> bool;
     }
 }
 
