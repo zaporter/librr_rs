@@ -2,10 +2,10 @@
 #[macro_use] extern crate newtype_derive;
 
 
-mod librr;
-mod record;
-mod binary_interface;
-mod replay;
+pub mod librr;
+pub mod record;
+pub mod binary_interface;
+pub mod replay;
 
 #[allow(warnings)]
 pub mod bindgen;

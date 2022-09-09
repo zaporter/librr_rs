@@ -61,11 +61,13 @@ mod ffi {
         fn get_thread_extra_info(&self, thread: GdbThreadId) -> &CxxString;
         #[rust_name = "get_register_internal"]
         fn get_register(&self, reg_name: GdbRegister, thread: GdbThreadId) -> &GdbRegisterValue;
+        /// Do not use
         #[rust_name = "get_regs_internal"]
         fn get_regs(&self) -> &CxxVector<GdbRegisterValue>;
         pub fn set_sw_breakpoint(self: Pin<&mut InterfaceRef>, addr: usize, kind: i32) -> bool;
         pub fn remove_sw_breakpoint(self: Pin<&mut InterfaceRef>, addr: usize, kind: i32) -> bool;
         pub fn get_thread_list_from_rust(interface: &InterfaceRef) -> Vec<GdbThreadId>;
+        /// Continue forward
         pub fn continue_forward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> bool;
         pub fn continue_backward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> bool;
         pub fn set_continue_thread(self: Pin<&mut InterfaceRef>, tid: GdbThreadId) -> bool;
@@ -90,22 +92,26 @@ mod ffi {
 }
 
 pub use ffi::*;
-macro_rules! translated_vec {
-    ($func_name:ident, $func_name_internal:ident, $extract:ident<$internal:ty> $(,$param:ident: $param_type:ty)*) => {
+macro_rules! extract_fn_vec {
+    (
+
+        $(#[$meta:meta])*
+        pub fn $func_name:ident ($($param:ident: $param_type:ty),*) <- $func_name_internal:ident {
+            $extract:ident<$internal:ty>
+        } ) => {
+        $(#[$meta])*
         pub fn $func_name (self: &InterfaceRef $(,$param: $param_type)*) -> Vec<$internal> {
             $extract::<$internal>(self.$func_name_internal($($param),*))
         }
     };
 }
-macro_rules! translated_vec_pin_mut {
-    ($func_name:ident, $func_name_internal:ident, $extract:ident<$internal:ty> $(,$param:ident: $param_type:ty)*) => {
-        pub fn $func_name (self: Pin<&mut InterfaceRef> $(,$param: $param_type)*) -> Vec<$internal> {
-            $extract::<$internal>(self.$func_name_internal($($param),*))
-        }
-    };
-}
-macro_rules! extracted_fn {
-    ($func_name:ident, $func_name_internal:ident, $extract:ident<$internal:ty> -> $out:ty $(,$param:ident: $param_type:ty)*) => {
+macro_rules! extract_fn {
+    (
+        $(#[$meta:meta])*
+        pub fn $func_name:ident ($($param:ident: $param_type:ty),*) <- $func_name_internal:ident -> $out:ty {
+            $extract:ident<$internal:ty>
+        } ) => {
+        $(#[$meta])*
         pub fn $func_name (self: &InterfaceRef $(,$param: $param_type)*) -> $out {
             $extract::<$internal>(self.$func_name_internal($($param),*))
         }
@@ -125,21 +131,43 @@ impl InterfaceRef {
         let_cxx_string!(name_cxx = name);
         self.set_symbol_internal(&name_cxx, address)
     }
-    translated_vec!(get_auxv, get_auxv_internal, extract_vec<u8>, thread:GdbThreadId);
-    translated_vec!(get_regs, get_regs_internal, extract_vec<GdbRegisterValue>);
-    extracted_fn!(get_thread_extra_info,
-        get_thread_extra_info_internal,
-        extract_str<()> -> String,
-        thread:GdbThreadId);
-    extracted_fn!(get_exec_file,
-        get_exec_file_internal,
-        extract_str<()> -> String);
+    extract_fn_vec!(
+        /// Get the auxilary vector 
+        pub fn get_auxv (thread:GdbThreadId) <- get_auxv_internal {
+            extract_vec<u8>
+        }   
+    );
+    extract_fn_vec!(
+        /// Get a vector of all of the registers. 
+        /// This may include strangely named or unused registers
+        pub fn get_regs () <- get_regs_internal {
+            extract_vec<GdbRegisterValue>
+        }   
+    );
 
-    extracted_fn!(get_register,
-        get_register_internal,
-        extract_clone<GdbRegisterValue> -> GdbRegisterValue,
-        reg:GdbRegister,
-        thread:GdbThreadId);
+    extract_fn!(
+        pub fn get_thread_extra_info(thread:GdbThreadId) <- get_thread_extra_info_internal -> String {
+            extract_str<()>
+        }
+    );
+    extract_fn!(
+        /// Return a file path that contains all of the symbols for the executable
+        /// This is often a clone of the orignal executable because the original
+        /// might have moved. 
+        pub fn get_exec_file() <- get_exec_file_internal -> String {
+            extract_str<()>
+        }
+    );
+    extract_fn!(
+        /// Get value of a register
+        pub fn get_register(reg:GdbRegister, thread:GdbThreadId) <- get_register_internal -> GdbRegisterValue {
+            extract_clone<GdbRegisterValue>
+        }
+    );
+    pub fn get_thread_list(&self) -> Vec<GdbThreadId> {
+        get_thread_list_from_rust(self)
+    }
+
 }
 fn extract_vec<T>(vec: &CxxVector<T>) -> Vec<T>
 where
@@ -155,11 +183,6 @@ where
     T: Clone,
 {
     object.clone()
-}
-impl InterfaceRef {
-    pub fn get_thread_list(&self) -> Vec<GdbThreadId> {
-        get_thread_list_from_rust(self)
-    }
 }
 
 custom_derive! {
@@ -476,29 +499,6 @@ mod tests {
         assert!(bin_interface.current_frame_time() >= 1);
     }
     #[test]
-    #[ignore]
-    #[serial]
-    fn binary_interface_initialization_dateviewer_660() {
-        initialize();
-        let sample_dateviewer_dir = create_sample_dateviewer_recording();
-        let mut bin_interface = new_binary_interface(
-            660,
-            sample_dateviewer_dir
-                .into_os_string()
-                .into_string()
-                .unwrap(),
-        );
-        assert_eq!(bin_interface.current_frame_time(), 1);
-        let mut output = String::new();
-        let mut stdout_buf = BufferRedirect::stdout().unwrap();
-        bin_interface.pin_mut().initialize();
-        stdout_buf.read_to_string(&mut output).unwrap();
-        drop(stdout_buf);
-        assert!(output.contains("Started"));
-        assert!(!output.contains("Finished"));
-        assert!(bin_interface.current_frame_time() >= 660);
-    }
-    #[test]
     #[serial]
     fn binary_interface_initialization_dateviewer_1000() {
         initialize();
@@ -506,7 +506,7 @@ mod tests {
             .into_os_string()
             .into_string()
             .unwrap();
-        let mut bin_interface = new_binary_interface(1000, sample_dateviewer_dir);
+        let mut bin_interface = new_binary_interface(10000, sample_dateviewer_dir);
         assert_eq!(bin_interface.current_frame_time(), 1);
         let mut output = String::new();
         let mut stdout_buf = BufferRedirect::stdout().unwrap();
