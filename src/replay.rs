@@ -5,56 +5,57 @@ use cxx::{type_id, ExternType};
 #[cxx::bridge]
 pub mod replayffi {
 
-
     #[derive(Debug, PartialEq, Eq, Clone)]
     pub struct ReplayingFlags {
-        goto_event : i64,
-        singlestep_to_event : i64,
-        target_process : i32,
+        goto_event: i64,
+        singlestep_to_event: i64,
+        target_process: i32,
         // TODO ZACK: process_created_how
         // Dont use.
-        dont_launch_debugger : bool,
+        dont_launch_debugger: bool,
         // Dont use.
-        dbg_port : i32,
+        dbg_port: i32,
         // Dont use.
-        dbg_host : String,
+        dbg_host: String,
         // Dont use.
-        keep_listening : bool,
+        keep_listening: bool,
         // Dont use.
-        gdb_options : Vec<String>,
+        gdb_options: Vec<String>,
         // Dont use.
-        gdb_binary_file_path : String,
-        redirect : bool,
-        cpu_unbound : bool,
-        share_private_mappings : bool,
-        dump_interval : u32,
+        gdb_binary_file_path: String,
+        redirect: bool,
+        cpu_unbound: bool,
+        share_private_mappings: bool,
+        dump_interval: u32,
         // Dont use.
-        serve_files : bool,
+        serve_files: bool,
         // Dont use.
-        tty : String,
-
+        tty: String,
     }
     unsafe extern "C++" {
         include!("librr_rs/src/replay.hpp");
-        pub fn replay(flags : ReplayingFlags, tracedir : String) -> i32;
+        pub fn replay(flags: ReplayingFlags, tracedir: String) -> i32;
         pub fn get_default_replay_flags() -> ReplayingFlags;
         pub fn printmyval();
         fn replay_flags_pipe_test(flags: ReplayingFlags) -> ReplayingFlags;
     }
-    #[namespace = "rr" ]
+    #[namespace = "rr"]
     unsafe extern "C++" {
         include!("librr_rs/src/replay.hpp");
 
         type ReplayController;
         fn print_test_controller(&self);
-        fn test_run(self : Pin<&mut ReplayController>);
+        fn test_run(self: Pin<&mut ReplayController>);
         fn can_continue_replay(&self) -> bool;
-        fn setup(self : Pin<&mut ReplayController>);
-        fn new_replay_controller(trace_dir : String, flags:ReplayingFlags) -> UniquePtr<ReplayController>;
+        fn setup(self: Pin<&mut ReplayController>);
+        fn new_replay_controller(
+            trace_dir: String,
+            flags: ReplayingFlags,
+        ) -> UniquePtr<ReplayController>;
     }
 }
 impl ReplayingFlags {
-    pub fn default() ->ReplayingFlags {
+    pub fn default() -> ReplayingFlags {
         get_default_replay_flags()
     }
 }
@@ -75,24 +76,24 @@ mod tests {
     //     assert!(controller.can_continue_replay())
     // }
     #[test]
-    fn replay_flags_defaults(){
+    fn replay_flags_defaults() {
         //test_replay();
         let flags = get_default_replay_flags();
         assert_eq!(flags.dont_launch_debugger, false);
         assert_eq!(flags.goto_event, 0);
         assert_eq!(flags.singlestep_to_event, 0);
-        assert_eq!(flags.target_process,0);
+        assert_eq!(flags.target_process, 0);
         assert_eq!(flags.dbg_port, -1);
         assert_eq!(flags.dbg_host, "127.0.0.1");
-        assert_eq!(flags.keep_listening,false);
-        assert_eq!(flags.redirect,true);
+        assert_eq!(flags.keep_listening, false);
+        assert_eq!(flags.redirect, true);
         assert_eq!(flags.cpu_unbound, false);
         assert_eq!(flags.share_private_mappings, false);
         assert_eq!(flags.dump_interval, 0);
         assert_eq!(flags.serve_files, false);
     }
     #[test]
-    fn replay_flags_pipe_test_1(){
+    fn replay_flags_pipe_test_1() {
         let mut flags = get_default_replay_flags();
         flags.dont_launch_debugger = true;
         flags.goto_event = -1;
@@ -109,9 +110,8 @@ mod tests {
         flags.share_private_mappings = true;
         flags.dump_interval = 10;
         flags.serve_files = true;
-        flags.tty = "Torrent".to_owned(); 
+        flags.tty = "Torrent".to_owned();
         let response = replay_flags_pipe_test(flags.clone());
         assert_eq!(flags, response);
     }
-
 }

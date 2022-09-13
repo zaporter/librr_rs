@@ -1,12 +1,11 @@
-extern crate cmake;
 extern crate bindgen;
+extern crate cmake;
 
+use cmake::Config;
 use std::env;
 use std::path::PathBuf;
-use cmake::Config;
 
-fn main() -> miette::Result<()>{
-
+fn main() -> miette::Result<()> {
     // println!("cargo:rerun-if-changed=librr/src/*.h");
     // println!("cargo:rerun-if-changed=librr/src/*.cc");
     // println!("cargo:rerun-if-changed=src/*.hpp");
@@ -14,9 +13,7 @@ fn main() -> miette::Result<()>{
     // println!("cargo:rerun-if-changed=src/*.rs");
     // println!("cargo:rerun-if-changed=build.rs");
 
-
-
-    let dst = Config::new("librr").build();       
+    let dst = Config::new("librr").build();
 
     //let path = std::path::PathBuf::from("src"); // include path
     //let path2  = std::path::PathBuf::from(format!("{}/build",dst.display()));
@@ -28,7 +25,7 @@ fn main() -> miette::Result<()>{
     //    .flag_if_supported("-std=c++14")
     //    .compile("autocxx-demo"); // arbitrary library name, pick anything
     //                           //
-    {   
+    {
         let bindings = bindgen::Builder::default()
             .header("librr/src/GdbConnection.h")
             .allowlist_type("rr::GdbRegisterValue")
@@ -45,11 +42,14 @@ fn main() -> miette::Result<()>{
             .clang_arg("-std=c++14")
             .clang_arg(format!("-I{}/build", dst.display()))
             .generate()
-            .or(Err("Unable to generate bindings for GdbConnection")).unwrap();
+            .or(Err("Unable to generate bindings for GdbConnection"))
+            .unwrap();
         let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-        bindings.write_to_file(out_dir.join("gdbconnection-bindings.rs")).expect("Couldn't write bindings!");
+        bindings
+            .write_to_file(out_dir.join("gdbconnection-bindings.rs"))
+            .expect("Couldn't write bindings!");
     }
-    {   
+    {
         let bindings = bindgen::Builder::default()
             .header("librr/src/TaskishUid.h")
             .allowlist_type("rr::TaskUid")
@@ -61,9 +61,12 @@ fn main() -> miette::Result<()>{
             .clang_arg("-std=c++14")
             .clang_arg(format!("-I{}/build", dst.display()))
             .generate()
-            .or(Err("Unable to generate bindings for TaskishUid")).unwrap();
+            .or(Err("Unable to generate bindings for TaskishUid"))
+            .unwrap();
         let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-        bindings.write_to_file(out_dir.join("taskishuid-bindings.rs")).expect("Couldn't write bindings!");
+        bindings
+            .write_to_file(out_dir.join("taskishuid-bindings.rs"))
+            .expect("Couldn't write bindings!");
     }
 
     cxx_build::bridge("src/librr.rs")
@@ -98,14 +101,11 @@ fn main() -> miette::Result<()>{
         .flag_if_supported("-std=c++14")
         .compile("librr-rs-binary-interface");
 
-
-
-    
     println!("cargo:rustc-link-search=native={}/bin", dst.display());
     println!("cargo:rustc-link-search=native={}/lib/rr", dst.display());
-    println!("cargo:rustc-link-lib=rrpreload");   
-    println!("cargo:rustc-link-lib=rrpage");   
-    println!("cargo:rustc-link-lib=rr");   
-    println!("cargo:rustc-link-lib=rraudit");   
+    println!("cargo:rustc-link-lib=rrpreload");
+    println!("cargo:rustc-link-lib=rrpage");
+    println!("cargo:rustc-link-lib=rr");
+    println!("cargo:rustc-link-lib=rraudit");
     Ok(())
 }

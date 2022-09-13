@@ -4,6 +4,7 @@ use object::{
     Object, ObjectSection, ObjectSymbol, ObjectSymbolTable, Section, SectionKind, Segment,
 };
 use std::error::Error;
+use std::ops::DerefMut;
 use std::path::PathBuf;
 use std::pin::Pin;
 use symbolic_common::{Language, Name};
@@ -47,7 +48,9 @@ mod ffi {
     impl CxxVector<GdbRegisterValue> {}
 
     unsafe extern "C++" {
-
+        /// Internal C++ binding to the librr BinaryInterface
+        /// Ideally you should never have to use this however you might have to
+        /// while the API is still being stabilized
         #[rust_name = "InterfaceRef"]
         type BinaryInterface;
         include!("librr_rs/src/binary_interface.hpp");
@@ -57,6 +60,9 @@ mod ffi {
         pub fn get_current_thread(self: &InterfaceRef) -> GdbThreadId;
         #[rust_name = "get_auxv_internal"]
         fn get_auxv(self: &InterfaceRef, thread: GdbThreadId) -> &CxxVector<u8>;
+        #[rust_name = "get_mem_internal"]
+        fn get_mem(self: &InterfaceRef, addr: usize, len: usize) -> &CxxVector<u8>;
+
         #[rust_name = "get_thread_extra_info_internal"]
         fn get_thread_extra_info(&self, thread: GdbThreadId) -> &CxxString;
         #[rust_name = "get_register_internal"]
@@ -68,8 +74,15 @@ mod ffi {
         pub fn remove_sw_breakpoint(self: Pin<&mut InterfaceRef>, addr: usize, kind: i32) -> bool;
         pub fn get_thread_list_from_rust(interface: &InterfaceRef) -> Vec<GdbThreadId>;
         /// Continue forward
-        pub fn continue_forward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> bool;
-        pub fn continue_backward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> bool;
+        pub fn continue_forward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> i32;
+        pub fn continue_backward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> i32;
+        pub fn can_continue(&self) -> bool;
+        pub fn has_exited(&self) -> bool;
+        pub fn get_exit_code(&self) -> i32;
+        pub fn restart_from_previous(self: Pin<&mut InterfaceRef>) -> bool;
+        pub fn restart_from_event(self: Pin<&mut InterfaceRef>, event: i64) -> bool;
+        pub fn restart_from_ticks(self: Pin<&mut InterfaceRef>, ticks: i64) -> bool;
+        pub fn restart_from_checkpoint(self: Pin<&mut InterfaceRef>, checkpoint: i64) -> bool;
         pub fn set_continue_thread(self: Pin<&mut InterfaceRef>, tid: GdbThreadId) -> bool;
         pub fn set_query_thread(self: Pin<&mut InterfaceRef>, tid: GdbThreadId) -> bool;
         pub fn setfs_pid(self: Pin<&mut InterfaceRef>, pid: i64);
@@ -118,6 +131,7 @@ macro_rules! extract_fn {
     };
 }
 impl InterfaceRef {
+    /// Open a file
     pub fn read_file(
         self: Pin<&mut InterfaceRef>,
         file_name: String,
@@ -132,17 +146,23 @@ impl InterfaceRef {
         self.set_symbol_internal(&name_cxx, address)
     }
     extract_fn_vec!(
-        /// Get the auxilary vector 
+        /// Get the auxilary vector
         pub fn get_auxv (thread:GdbThreadId) <- get_auxv_internal {
             extract_vec<u8>
-        }   
+        }
     );
     extract_fn_vec!(
-        /// Get a vector of all of the registers. 
+        /// Read memory
+        pub fn get_mem (addr:usize, len:usize) <- get_mem_internal {
+            extract_vec<u8>
+        }
+    );
+    extract_fn_vec!(
+        /// Get a vector of all of the registers.
         /// This may include strangely named or unused registers
         pub fn get_regs () <- get_regs_internal {
             extract_vec<GdbRegisterValue>
-        }   
+        }
     );
 
     extract_fn!(
@@ -153,7 +173,7 @@ impl InterfaceRef {
     extract_fn!(
         /// Return a file path that contains all of the symbols for the executable
         /// This is often a clone of the orignal executable because the original
-        /// might have moved. 
+        /// might have moved.
         pub fn get_exec_file() <- get_exec_file_internal -> String {
             extract_str<()>
         }
@@ -167,7 +187,6 @@ impl InterfaceRef {
     pub fn get_thread_list(&self) -> Vec<GdbThreadId> {
         get_thread_list_from_rust(self)
     }
-
 }
 fn extract_vec<T>(vec: &CxxVector<T>) -> Vec<T>
 where
@@ -226,6 +245,14 @@ impl BinaryInterface {
         }
     }
 }
+// impl From<Pin<&mut InterfaceRef>> for &mut BinaryInterface {
+
+// }
+// impl DerefMut<Target=Pin<&mut InterfaceRef>> for BinaryInterface {
+//     fn deref(&mut self) -> &Self::Target {
+//         self.pin_mut()
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -239,6 +266,15 @@ mod tests {
     use std::str::FromStr;
     use std::{path::PathBuf, sync::Once};
     static INIT: Once = Once::new();
+    
+    fn get_symbols<'a>(file : &'a object::File) -> Result<Vec<(String,object::Symbol<'a,'a>)>, Box<dyn Error>> {
+        let mut to_ret = Vec::new();
+        for symbol in file.symbol_table().ok_or("No symboltable found")?.symbols() {
+            let name : String = Name::from(symbol.name().unwrap()).try_demangle(DemangleOptions::name_only()).to_string();
+            to_ret.push((name, symbol));
+        }
+        Ok(to_ret)
+    }
 
     fn initialize() {
         INIT.call_once(|| {
@@ -285,11 +321,25 @@ mod tests {
     }
     #[test]
     #[serial]
+    fn get_mem_test() {
+        initialize();
+        let sample_dateviewer_dir = create_sample_dateviewer_recording();
+        let mut bin_interface = BinaryInterface::new(sample_dateviewer_dir);
+        let cthread = bin_interface.get_current_thread();
+        bin_interface.pin_mut().set_query_thread(cthread);
+        let cthread = bin_interface.get_current_thread();
+        let rip = bin_interface
+            .get_register(GdbRegister::DREG_RIP, cthread)
+            .to_usize();
+        let mem: Vec<u8> = bin_interface.get_mem(rip, 10);
+        assert!(mem.len() == 10);
+        dbg!(mem);
+    }
+    #[test]
+    #[serial]
     fn file_read_test() {
         initialize();
         let sample_dateviewer_dir = create_sample_dateviewer_recording();
-        // let sample_dateviewer_dir =
-        //     PathBuf::from_str("/home/zack/.local/share/rr/date_viewer-94").unwrap();
         let mut bin_interface = BinaryInterface::new_at_target_event(0, sample_dateviewer_dir);
 
         let mut found_mapping = false;
@@ -304,73 +354,58 @@ mod tests {
                 assert!(!mapping.perms.writable);
                 assert!(mapping.perms.executable);
                 // should be ld-linux-x86-64.so.2
-                dbg!(rip);
-                dbg!(mapping);
                 found_mapping = true;
             }
-            dbg!(mapping);
         }
-
+        dbg!(&mappings);
         assert!(found_mapping);
-        let symbol_file =
-            bin_interface.get_exec_file();
+        // Identify the proc map entry for the binary
+        let base_exe = mappings.iter().find(|k|
+            match &k.pathname {
+                procmaps::Path::MappedFile(path) => path.contains("date"),
+                _ => false
+            }).unwrap().base;
+        
+        // Read symbol file and parse symbols 
+        let symbol_file = bin_interface.get_exec_file();
         dbg!(&symbol_file);
 
-            //"/home/zack/.local/share/rr/DateTester-44/mmap_hardlink_4_DateTester".to_owned();
         let symbol_str = std::fs::read(symbol_file).unwrap();
         let obj_file = object::File::parse(&*symbol_str).unwrap();
-        let mut possible_mains = Vec::new();
-        for symbol in obj_file.symbol_table().unwrap().symbols() {
-            // println!("Name: {}", symbol.name().unwrap());
-            if symbol.name().unwrap().contains("main") {
-                let name : String = Name::from(symbol.name().unwrap()).try_demangle(DemangleOptions::name_only()).to_string();
-                possible_mains.push((name, symbol.address() as usize));
-            }
-        }
-        // for (name,addr) in possible_mains {
-        //     dbg!(&name);
-
-
-        // }
-        let main_addr = possible_mains.into_iter().filter(|k| k.0 == "date_viewer::main").next().unwrap().1;
+        let symbols = get_symbols(&obj_file).unwrap();
+        // identify address of date_viewer::main
+        let main_addr = symbols.into_iter().find(|k| k.0 == "date_viewer::main").unwrap().1.address() as usize;
+        let main_addr = main_addr + base_exe;
         dbg!(main_addr);
-        let addr_1 = 94397935460352 as usize;
-        let addr_2 = 94397935484928 as usize;
-        let addr_3 = 94397935722496 as usize;
-        let addr_4 = 94397935783936 as usize;
 
-        dbg!(bin_interface.pin_mut().set_sw_breakpoint(addr_1+main_addr, 1));
-        dbg!(bin_interface.pin_mut().set_sw_breakpoint(addr_2+main_addr, 1));
-        dbg!(bin_interface.pin_mut().set_sw_breakpoint(addr_3+main_addr, 1));
-        dbg!(bin_interface.pin_mut().set_sw_breakpoint(addr_4+main_addr, 1));
-        // assert!(bin_interface.pin_mut().set_sw_breakpoint(0x55dc6aaf28f0, 1));
-        // assert!(bin_interface.pin_mut().set_sw_breakpoint(0x7f2ae7ef1300, 1));
+        // Set the query and continue threads
+        let cthread = bin_interface.get_current_thread();
+        dbg!(bin_interface.pin_mut().set_continue_thread(cthread));
+        let cthread = bin_interface.get_current_thread();
+        dbg!(bin_interface.pin_mut().set_query_thread(cthread));
+
+
         bin_interface.set_pass_signals(vec![
-            0xe, 0x14, 0x17, 0x1a, 0x1b, 0x1c, 0x21, 0x24, 0x25, 0x2c, 0x4c, 0x97,
+            0,0xe, 0x14, 0x17, 0x1a, 0x1b, 0x1c, 0x21, 0x24, 0x25, 0x2c, 0x4c, 0x97,
         ]);
 
-        let eip =
-            bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread());
-        dbg!(bin_interface.get_register(GdbRegister::DREG_EIP, bin_interface.get_current_thread()));
-        let action = GdbContAction {
-            type_: GdbActionType::ACTION_STEP,
-            target: bin_interface.get_current_thread(),
-            signal_to_deliver: 0,
-        };
-        let action2 = GdbContAction {
+        dbg!(bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread()));
+        let cont = GdbContAction {
             type_: GdbActionType::ACTION_CONTINUE,
             target: bin_interface.get_current_thread(),
             signal_to_deliver: 0,
         };
-        dbg!(eip);
-        for _ in 0..10 {
-            bin_interface.pin_mut().continue_forward(action.clone());
-            bin_interface.pin_mut().continue_forward(action2.clone());
-            let eip = bin_interface
-                .get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread());
-            dbg!(eip);
-        }
-        dbg!(bin_interface.get_exec_file());
+        bin_interface.pin_mut().set_sw_breakpoint(main_addr,1);
+        let sig = bin_interface.pin_mut().continue_forward(cont);
+        let rip = bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread()).to_usize();
+    
+        dbg!(rip);
+        assert_eq!(rip, main_addr);
+        assert_eq!(sig, 5); // SIGTRAP
+        bin_interface.pin_mut().remove_sw_breakpoint(main_addr,1);
+        let sig = bin_interface.pin_mut().continue_forward(cont);
+        assert_eq!(sig, 9); // SIGKILL
+
     }
 
     #[test]
@@ -439,7 +474,7 @@ mod tests {
         let mut bin_interface = BinaryInterface::new(sample_dateviewer_dir);
         // on x86, this should always be set to 1.
         // dbg!(bin_interface.pin_mut().set_sw_breakpoint(1<<50,1));
-        dbg!(bin_interface.get_register(GdbRegister::DREG_EIP, bin_interface.get_current_thread()));
+        dbg!(bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread()));
         dbg!(bin_interface.get_exec_file());
         // assert!(bin_interface.pin_mut().set_sw_breakpoint(93941903268112, 1));
         // continue

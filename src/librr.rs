@@ -5,10 +5,9 @@ pub mod librrffi {
         include!("librr_rs/src/librr.hpp");
         pub fn page_size() -> usize;
         pub fn raise_resource_limits();
-        pub fn assert_prerequisites(use_syscall_buffer : bool);
+        pub fn assert_prerequisites(use_syscall_buffer: bool);
         pub fn test_replay_cpp();
     }
-
 }
 pub use librrffi::*;
 
@@ -18,9 +17,9 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn librr_replay_cpp_test(){
-        assert!(page_size()>0);
-        assert_eq!(5,1+4);
+    fn librr_replay_cpp_test() {
+        assert!(page_size() > 0);
+        assert_eq!(5, 1 + 4);
         raise_resource_limits();
         test_replay_cpp();
     }
