@@ -1,3 +1,6 @@
+
+#![allow(unused_imports)]
+
 #[macro_use]
 extern crate custom_derive;
 #[macro_use]

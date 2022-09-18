@@ -72,10 +72,13 @@ mod ffi {
         fn get_regs(&self) -> &CxxVector<GdbRegisterValue>;
         pub fn set_sw_breakpoint(self: Pin<&mut InterfaceRef>, addr: usize, kind: i32) -> bool;
         pub fn remove_sw_breakpoint(self: Pin<&mut InterfaceRef>, addr: usize, kind: i32) -> bool;
+        pub fn set_byte(self:Pin<&mut InterfaceRef>, addr:usize, val:u8)->bool;
         pub fn get_thread_list_from_rust(interface: &InterfaceRef) -> Vec<GdbThreadId>;
         /// Continue forward
         pub fn continue_forward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> i32;
         pub fn continue_backward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> i32;
+        pub fn mmap_stack(self:Pin<&mut InterfaceRef>, addr: usize, size:usize)->bool;
+        pub fn mmap_heap(self:Pin<&mut InterfaceRef>, addr: usize, size:usize)->bool;
         pub fn can_continue(&self) -> bool;
         pub fn has_exited(&self) -> bool;
         pub fn get_exit_code(&self) -> i32;
@@ -238,6 +241,12 @@ impl BinaryInterface {
         Ok(procmaps::Mappings::from_str(data)?)
         //
     }
+    pub fn set_bytes(&mut self, addr:usize, bytes:Vec<u8>)->Result<(), Box<dyn Error>>{
+        for (offset,byte) in bytes.iter().enumerate(){
+            self.pin_mut().set_byte(addr+offset, *byte);
+        }
+        Ok(())
+    }
     pub fn set_pass_signals(&mut self, signals: Vec<i32>) {
         self.pin_mut().clear_pass_signals();
         for signal in signals {
@@ -337,7 +346,22 @@ mod tests {
     }
     #[test]
     #[serial]
-    fn file_read_test() {
+    fn set_mem_outside_divergence() {
+        initialize();
+        let sample_dateviewer_dir = create_sample_dateviewer_recording();
+        let mut bin_interface = BinaryInterface::new(sample_dateviewer_dir);
+        let cthread = bin_interface.get_current_thread();
+        bin_interface.pin_mut().set_query_thread(cthread);
+        let cthread = bin_interface.get_current_thread();
+        let rip = bin_interface
+            .get_register(GdbRegister::DREG_RIP, cthread)
+            .to_usize();
+        let res = bin_interface.pin_mut().set_byte(rip+1, 0);
+        assert!(res);
+    }
+    #[test]
+    #[serial]
+    fn proc_map_test() {
         initialize();
         let sample_dateviewer_dir = create_sample_dateviewer_recording();
         let mut bin_interface = BinaryInterface::new_at_target_event(0, sample_dateviewer_dir);
@@ -359,6 +383,17 @@ mod tests {
         }
         dbg!(&mappings);
         assert!(found_mapping);
+
+    }
+    #[test]
+    #[serial]
+    fn file_read_test() {
+        initialize();
+        let sample_dateviewer_dir = create_sample_dateviewer_recording();
+        let mut bin_interface = BinaryInterface::new_at_target_event(0, sample_dateviewer_dir);
+
+        let current_thread = bin_interface.get_current_thread();
+        let mappings = bin_interface.get_proc_map().unwrap();
         // Identify the proc map entry for the binary
         let base_exe = mappings.iter().find(|k|
             match &k.pathname {
