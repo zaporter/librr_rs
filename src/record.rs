@@ -1,3 +1,7 @@
+
+use std::pin::Pin;
+use cxx::{CxxString, UniquePtr, let_cxx_string};
+
 #[cxx::bridge(namespace = "rr")]
 pub mod recordffi {
     //pub struct DisableCPUIDFeatures {
@@ -51,12 +55,34 @@ pub mod recordffi {
 
     //}
 
+
+
     unsafe extern "C++" {
         include!("librr_rs/src/record.hpp");
         // pub fn get_default_record_flags() -> RecordingFlags;
+        pub fn new_recording_interface(args:&CxxString) -> UniquePtr<RecordingInterfaceRef>;
+        #[rust_name="RecordingInterfaceRef"]
+        type RecordingInterface;
+        pub fn continue_recording(self:Pin<&mut RecordingInterfaceRef>)->bool;
+        pub fn current_frame_time(&self)->i64;
         pub fn record(args: Vec<String>) -> i32;
         // fn record_flags_pipe_test(flags : RecordingFlags) -> RecordingFlags;
     }
+}
+
+
+custom_derive! {
+    #[derive(NewtypeFrom, NewtypeDeref,NewtypeDerefMut)]
+    pub struct RecordingInterface(UniquePtr<RecordingInterfaceRef>);
+}
+
+impl RecordingInterface {
+    pub fn new(args: String) -> Self {
+        let_cxx_string!(args_cxx= args);
+        let rec_ref = recordffi::new_recording_interface(&args_cxx);
+        RecordingInterface(rec_ref)
+    }
+
 }
 pub fn record_path_output(
     executable: String,
@@ -86,6 +112,18 @@ mod tests {
         INIT.call_once(|| {
             raise_resource_limits();
         });
+    }
+    #[test]
+    #[serial]
+    fn recording_interface_creation(){
+        initialize();
+        let mut k = RecordingInterface::new("/home/zack/date_viewer".to_owned());
+        let mut i = 0;
+        while k.pin_mut().continue_recording() {
+            dbg!({i+=1;i-1});
+            dbg!(k.current_frame_time());
+        };
+        println!("Done");
     }
 
     #[test]
