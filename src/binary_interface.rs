@@ -72,13 +72,24 @@ mod ffi {
         fn get_regs(&self) -> &CxxVector<GdbRegisterValue>;
         pub fn set_sw_breakpoint(self: Pin<&mut InterfaceRef>, addr: usize, kind: i32) -> bool;
         pub fn remove_sw_breakpoint(self: Pin<&mut InterfaceRef>, addr: usize, kind: i32) -> bool;
-        pub fn set_byte(self:Pin<&mut InterfaceRef>, addr:usize, val:u8)->bool;
+        pub fn set_byte(self: Pin<&mut InterfaceRef>, addr: usize, val: u8) -> bool;
         pub fn get_thread_list_from_rust(interface: &InterfaceRef) -> Vec<GdbThreadId>;
         /// Continue forward
-        pub fn continue_forward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> i32;
+        pub fn continue_forward(self: Pin<&mut InterfaceRef>, action: GdbContAction)
+            -> Result<i32>;
+        /// This continues forward by 1 frametime. If it hits a spot where continue_forward
+        /// would stop, it returns that signal, otherwise it returns -1.
+        ///
+        /// Note: this relies on UNDEFINED BEHAVIOR.
+        /// Ensure that you have good tests if you do use this function
+        /// as it can easily break in the future
+        pub fn continue_forward_jog_undefined(
+            self: Pin<&mut InterfaceRef>,
+            action: GdbContAction,
+        ) -> Result<i32>;
         pub fn continue_backward(self: Pin<&mut InterfaceRef>, action: GdbContAction) -> i32;
-        pub fn mmap_stack(self:Pin<&mut InterfaceRef>, addr: usize, size:usize)->bool;
-        pub fn mmap_heap(self:Pin<&mut InterfaceRef>, addr: usize, size:usize)->bool;
+        pub fn mmap_stack(self: Pin<&mut InterfaceRef>, addr: usize, size: usize) -> bool;
+        pub fn mmap_heap(self: Pin<&mut InterfaceRef>, addr: usize, size: usize) -> bool;
         pub fn can_continue(&self) -> bool;
         pub fn has_exited(&self) -> bool;
         pub fn get_exit_code(&self) -> i32;
@@ -241,9 +252,9 @@ impl BinaryInterface {
         Ok(procmaps::Mappings::from_str(data)?)
         //
     }
-    pub fn set_bytes(&mut self, addr:usize, bytes:Vec<u8>)->Result<(), Box<dyn Error>>{
-        for (offset,byte) in bytes.iter().enumerate(){
-            self.pin_mut().set_byte(addr+offset, *byte);
+    pub fn set_bytes(&mut self, addr: usize, bytes: Vec<u8>) -> Result<(), Box<dyn Error>> {
+        for (offset, byte) in bytes.iter().enumerate() {
+            self.pin_mut().set_byte(addr + offset, *byte);
         }
         Ok(())
     }
@@ -275,11 +286,15 @@ mod tests {
     use std::str::FromStr;
     use std::{path::PathBuf, sync::Once};
     static INIT: Once = Once::new();
-    
-    fn get_symbols<'a>(file : &'a object::File) -> Result<Vec<(String,object::Symbol<'a,'a>)>, Box<dyn Error>> {
+
+    fn get_symbols<'a>(
+        file: &'a object::File,
+    ) -> Result<Vec<(String, object::Symbol<'a, 'a>)>, Box<dyn Error>> {
         let mut to_ret = Vec::new();
         for symbol in file.symbol_table().ok_or("No symboltable found")?.symbols() {
-            let name : String = Name::from(symbol.name().unwrap()).try_demangle(DemangleOptions::name_only()).to_string();
+            let name: String = Name::from(symbol.name().unwrap())
+                .try_demangle(DemangleOptions::name_only())
+                .to_string();
             to_ret.push((name, symbol));
         }
         Ok(to_ret)
@@ -356,9 +371,13 @@ mod tests {
         let rip = bin_interface
             .get_register(GdbRegister::DREG_RIP, cthread)
             .to_usize();
-        let res = bin_interface.pin_mut().set_byte(rip+1, 0);
-        assert!(res);
+        let to_set = vec![0, 128, 4, 128, 0, 12, 0];
+        let res = bin_interface.set_bytes(rip + 1, to_set.clone());
+        assert!(res.is_ok());
+        let mem = bin_interface.get_mem(rip + 1, to_set.len());
+        assert_eq!(mem, to_set);
     }
+
     #[test]
     #[serial]
     fn proc_map_test() {
@@ -383,7 +402,6 @@ mod tests {
         }
         dbg!(&mappings);
         assert!(found_mapping);
-
     }
     #[test]
     #[serial]
@@ -395,13 +413,16 @@ mod tests {
         let current_thread = bin_interface.get_current_thread();
         let mappings = bin_interface.get_proc_map().unwrap();
         // Identify the proc map entry for the binary
-        let base_exe = mappings.iter().find(|k|
-            match &k.pathname {
+        let base_exe = mappings
+            .iter()
+            .find(|k| match &k.pathname {
                 procmaps::Path::MappedFile(path) => path.contains("date"),
-                _ => false
-            }).unwrap().base;
-        
-        // Read symbol file and parse symbols 
+                _ => false,
+            })
+            .unwrap()
+            .base;
+
+        // Read symbol file and parse symbols
         let symbol_file = bin_interface.get_exec_file();
         dbg!(&symbol_file);
 
@@ -409,19 +430,23 @@ mod tests {
         let obj_file = object::File::parse(&*symbol_str).unwrap();
         let symbols = get_symbols(&obj_file).unwrap();
         // identify address of date_viewer::main
-        let main_addr = symbols.into_iter().find(|k| k.0 == "date_viewer::main").unwrap().1.address() as usize;
+        let main_addr = symbols
+            .into_iter()
+            .find(|k| k.0 == "date_viewer::main")
+            .unwrap()
+            .1
+            .address() as usize;
         let main_addr = main_addr + base_exe;
         dbg!(main_addr);
 
         // Set the query and continue threads
         let cthread = bin_interface.get_current_thread();
-        dbg!(bin_interface.pin_mut().set_continue_thread(cthread));
+        assert!(bin_interface.pin_mut().set_continue_thread(cthread));
         let cthread = bin_interface.get_current_thread();
-        dbg!(bin_interface.pin_mut().set_query_thread(cthread));
-
+        assert!(bin_interface.pin_mut().set_query_thread(cthread));
 
         bin_interface.set_pass_signals(vec![
-            0,0xe, 0x14, 0x17, 0x1a, 0x1b, 0x1c, 0x21, 0x24, 0x25, 0x2c, 0x4c, 0x97,
+            0, 0xe, 0x14, 0x17, 0x1a, 0x1b, 0x1c, 0x21, 0x24, 0x25, 0x2c, 0x4c, 0x97,
         ]);
 
         dbg!(bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread()));
@@ -430,17 +455,99 @@ mod tests {
             target: bin_interface.get_current_thread(),
             signal_to_deliver: 0,
         };
-        bin_interface.pin_mut().set_sw_breakpoint(main_addr,1);
-        let sig = bin_interface.pin_mut().continue_forward(cont);
-        let rip = bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread()).to_usize();
-    
+        bin_interface.pin_mut().set_sw_breakpoint(main_addr, 1);
+        let sig = bin_interface.pin_mut().continue_forward(cont).unwrap();
+        let rip = bin_interface
+            .get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread())
+            .to_usize();
+
         dbg!(rip);
         assert_eq!(rip, main_addr);
         assert_eq!(sig, 5); // SIGTRAP
-        bin_interface.pin_mut().remove_sw_breakpoint(main_addr,1);
-        let sig = bin_interface.pin_mut().continue_forward(cont);
+        bin_interface.pin_mut().remove_sw_breakpoint(main_addr, 1);
+        let sig = bin_interface.pin_mut().continue_forward(cont).unwrap();
         assert_eq!(sig, 9); // SIGKILL
+    }
+    //
+    // Test to ensure that a jog goes forward by exactly one
+    // frametime per tick and that it also still returns the proper signals
+    // when it hits the correct spots
+    //
+    #[test]
+    #[serial]
+    fn continue_forward_jog_test() {
+        initialize();
+        let sample_dateviewer_dir = create_sample_dateviewer_recording();
+        let mut bin_interface = BinaryInterface::new_at_target_event(0, sample_dateviewer_dir);
 
+        let current_thread = bin_interface.get_current_thread();
+        let mappings = bin_interface.get_proc_map().unwrap();
+
+        let base_exe = mappings
+            .iter()
+            .find(|k| match &k.pathname {
+                procmaps::Path::MappedFile(path) => path.contains("date"),
+                _ => false,
+            })
+            .unwrap()
+            .base;
+
+        // Read symbol file and parse symbols
+        let symbol_file = bin_interface.get_exec_file();
+        dbg!(&symbol_file);
+
+        let symbol_str = std::fs::read(symbol_file).unwrap();
+        let obj_file = object::File::parse(&*symbol_str).unwrap();
+        let symbols = get_symbols(&obj_file).unwrap();
+        // identify address of date_viewer::main
+        let main_addr = symbols
+            .into_iter()
+            .find(|k| k.0 == "date_viewer::main")
+            .unwrap()
+            .1
+            .address() as usize;
+        let main_addr = main_addr + base_exe;
+        // Identify the proc map entry for the binary
+        // Set the query and continue threads
+        let cthread = bin_interface.get_current_thread();
+        assert!(bin_interface.pin_mut().set_continue_thread(cthread));
+        let cthread = bin_interface.get_current_thread();
+        assert!(bin_interface.pin_mut().set_query_thread(cthread));
+
+        bin_interface.set_pass_signals(vec![
+            0, 0xe, 0x14, 0x17, 0x1a, 0x1b, 0x1c, 0x21, 0x24, 0x25, 0x2c, 0x4c, 0x97,
+        ]);
+
+        dbg!(bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread()));
+        let cont = GdbContAction {
+            type_: GdbActionType::ACTION_CONTINUE,
+            target: bin_interface.get_current_thread(),
+            signal_to_deliver: 0,
+        };
+        let mut signal = 0;
+        // stop at main_addr
+        let mut current_frame_time = bin_interface.current_frame_time();
+        bin_interface.pin_mut().set_sw_breakpoint(main_addr, 1);
+        while signal != 9 {
+            signal = bin_interface
+                .pin_mut()
+                .continue_forward_jog_undefined(cont)
+                .unwrap();
+            dbg!(signal);
+            if signal == 5 {
+                //SIGTRAP
+                bin_interface.pin_mut().remove_sw_breakpoint(main_addr, 1);
+                // Frame time does not always increase if there is a hit breakpoint
+                current_frame_time -= 1;
+            } else if signal != 9 {
+                // ensure that the signal is -1 for all other continues
+                assert_eq!(signal, -1);
+            }
+            current_frame_time += 1;
+            assert_eq!(bin_interface.current_frame_time(), current_frame_time);
+            dbg!(bin_interface.current_frame_time());
+        }
+        assert_eq!(signal, 9); // SIGKILL
     }
 
     #[test]
@@ -493,13 +600,14 @@ mod tests {
         };
         dbg!(eip);
         for _ in 0..10 {
-            bin_interface.pin_mut().continue_forward(action.clone());
+            bin_interface
+                .pin_mut()
+                .continue_forward(action.clone())
+                .unwrap();
         }
         let eip =
             bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread());
         dbg!(eip);
-
-        //bin_interface.pin_mut().continue_forward()
     }
     #[test]
     #[serial]
