@@ -8,3 +8,10 @@ This project is devoted to building a programmatic Rust interface for the [rr de
 # Current Status
 
 At this point in time (and for many months to come), I **strongly reccomend against** using this library as it is subject to radical API changes while I figure things out. If you have a use case you want me to consider, please message me or submit a PR outlining your use case. 
+
+
+# Known Future API Changes
+- Some functions return T when they should return Result\<T,E\>
+- Cxx currently does not support the Option\<T\> return type. Once it does, some functions should return an option instead of an error code 
+- Some functions crash due to C++ assert!() statements when they should return errors. 
+- This whole thing needs to be refactored into a main package and a *-sys package to adhere to rust naming standards
