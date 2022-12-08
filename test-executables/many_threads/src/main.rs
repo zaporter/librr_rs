@@ -19,7 +19,14 @@ fn main() {
             println!("Thread {thread_num} has started");
             // ensure we dont finish before we can count the threads
             thread::sleep(Duration::from_millis(10));
-            println!("Thread {thread_num} is done");
+            let mut x = 10_u128;
+            for _ in 0..10000 {
+                x = thread_num / x + 1;
+                if x == 1000 {
+                    thread::yield_now();
+                }
+            }
+            println!("Thread {thread_num} is done. Val : {x}");
         }));
     };
     // give the threads time to start

@@ -93,6 +93,7 @@ mod ffi {
         pub fn can_continue(&self) -> bool;
         pub fn has_exited(&self) -> bool;
         pub fn get_exit_code(&self) -> i32;
+        // 
         pub fn restart_from_previous(self: Pin<&mut InterfaceRef>) -> bool;
         pub fn restart_from_event(self: Pin<&mut InterfaceRef>, event: i64) -> bool;
         pub fn restart_from_ticks(self: Pin<&mut InterfaceRef>, ticks: i64) -> bool;
@@ -115,6 +116,7 @@ mod ffi {
         pub fn add_pass_signal(self: Pin<&mut InterfaceRef>, signal: i32);
         pub fn clear_pass_signals(self: Pin<&mut InterfaceRef>);
         pub fn has_breakpoint_at_address(&self, tuid: GdbThreadId, addr: usize) -> bool;
+        pub fn serve_current_state_as_gdbserver(self: Pin<&mut InterfaceRef>, port: u16) -> bool;
     }
 }
 
@@ -264,6 +266,10 @@ impl BinaryInterface {
             self.pin_mut().add_pass_signal(signal);
         }
     }
+    pub fn get_gdb_connection_string(&self, port: u16) -> String{
+        let exe = self.get_exec_file();
+        format!("gdb '-l' '10000' '-ex' 'set sysroot /' '-ex' 'target extended-remote 127.0.0.1:{port}' {exe}")
+    }
 }
 // impl From<Pin<&mut InterfaceRef>> for &mut BinaryInterface {
 
@@ -328,6 +334,29 @@ mod tests {
         assert_eq!(ret_code, 0);
         save_dir
     }
+    fn create_sample_manythreads_recording() -> PathBuf {
+        let exe_dir = std::env::current_dir()
+            .unwrap()
+            .join("test-executables/build")
+            .join("many_threads");
+        let random_number: u64 = rand::thread_rng().gen();
+        let save_dir = std::env::temp_dir().join(random_number.to_string());
+        let mut output = String::new();
+        let mut stdout_buf = BufferRedirect::stdout().unwrap();
+        let ret_code = record_path_output(
+            exe_dir.into_os_string().into_string().unwrap(),
+            None,
+            save_dir.clone().into_os_string().into_string().unwrap(),
+        );
+        stdout_buf.read_to_string(&mut output).unwrap();
+        drop(stdout_buf);
+        assert!(output.contains("Started"));
+        assert!(output.contains("Done Spawning"));
+        assert!(output.contains("Thread 0 has started"));
+        assert!(output.contains("Finished"));
+        assert_eq!(ret_code, 0);
+        save_dir
+    }
 
     #[test]
     #[serial]
@@ -358,6 +387,24 @@ mod tests {
         let mem: Vec<u8> = bin_interface.get_mem(rip, 10);
         assert!(mem.len() == 10);
         dbg!(mem);
+    }
+
+    //TODO Write a test for this. This doesn't assert anything and doesn't terminate
+    #[test]
+    //#[ignore]
+    #[serial]
+    fn create_gdbserver() {
+        initialize();
+        let sample_dateviewer_dir = create_sample_dateviewer_recording();
+        let mut bin_interface = BinaryInterface::new(sample_dateviewer_dir);
+        let cthread = bin_interface.get_current_thread();
+        bin_interface.pin_mut().set_query_thread(cthread);
+        
+        let port = 20420;
+        let exe = bin_interface.get_exec_file();
+        let conn_str = format!("gdb '-l' '10000' '-ex' 'set sysroot /' '-ex' 'target extended-remote 127.0.0.1:{port}' {exe}");
+        dbg!(conn_str);
+        bin_interface.pin_mut().serve_current_state_as_gdbserver(20420);
     }
     #[test]
     #[serial]
@@ -608,6 +655,86 @@ mod tests {
         let eip =
             bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread());
         dbg!(eip);
+    }
+    #[test]
+    #[serial]
+    fn multithread_frametime_test() {
+        initialize();
+        let sample_dateviewer_dir = create_sample_manythreads_recording();
+
+        let mut bin_interface = BinaryInterface::new(sample_dateviewer_dir);
+        bin_interface.set_pass_signals(vec![
+            0, 0xe, 0x14, 0x17, 0x1a, 0x1b, 0x1c, 0x21, 0x24, 0x25, 0x2c, 0x4c, 0x97,
+        ]);
+
+        let thread = bin_interface.get_current_thread();
+        let action = GdbContAction {
+            type_: GdbActionType::ACTION_STEP,
+            target: bin_interface.get_current_thread(),
+            signal_to_deliver: 0,
+        };
+        let thread_list = bin_interface.get_thread_list();
+        let mut signal = 5;
+        let mut last_frame_time = bin_interface.current_frame_time();
+        while signal != 9 {
+            let c_thread = bin_interface.get_current_thread();
+            assert_eq!(c_thread.tid, thread.tid);
+            assert_eq!(c_thread.pid, thread.pid);
+            let c_thread_list = bin_interface.get_thread_list();
+            let a = thread_list.iter().map(|k| k.tid).collect::<Vec<i32>>();
+            let b = c_thread_list.iter().map(|k| k.tid).collect::<Vec<i32>>();
+
+            assert_eq!(a,b);
+            signal = bin_interface
+                .pin_mut()
+                .continue_forward(action.clone())
+                .unwrap();
+            
+        }
+        let eip =
+            bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread());
+        dbg!(eip);
+    }
+    #[test]
+    #[serial]
+    fn restart_frametime_test() {
+        initialize();
+        let sample_dateviewer_dir = create_sample_dateviewer_recording();
+
+        let mut bin_interface = BinaryInterface::new(sample_dateviewer_dir);
+        bin_interface.set_pass_signals(vec![
+            0, 0xe, 0x14, 0x17, 0x1a, 0x1b, 0x1c, 0x21, 0x24, 0x25, 0x2c, 0x4c, 0x97,
+        ]);
+
+        let thread = bin_interface.get_current_thread();
+        let action = GdbContAction {
+            type_: GdbActionType::ACTION_CONTINUE,
+            target: bin_interface.get_current_thread(),
+            signal_to_deliver: 0,
+        };
+        let thread_list = bin_interface.get_thread_list();
+        let mut signal = 5;
+        let first_frame_time = bin_interface.current_frame_time();
+        assert!(first_frame_time < 100);
+        
+
+        while signal != 9 && bin_interface.current_frame_time() < 140{
+            signal = bin_interface
+                .pin_mut()
+                .continue_forward_jog_undefined(action.clone())
+                .unwrap();
+        }
+
+        let mid_frame_time = bin_interface.current_frame_time();
+        assert_eq!(mid_frame_time, 140);
+
+        bin_interface.pin_mut().restart_from_event(50);
+        let last_frame_time = bin_interface.current_frame_time();
+        assert_eq!(last_frame_time, 100);
+
+        // let eip =
+        //     bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread());
+        // dbg!(eip);
     }
     #[test]
     #[serial]
