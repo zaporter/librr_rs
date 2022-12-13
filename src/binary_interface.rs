@@ -391,7 +391,7 @@ mod tests {
 
     //TODO Write a test for this. This doesn't assert anything and doesn't terminate
     #[test]
-    //#[ignore]
+    #[ignore]
     #[serial]
     fn create_gdbserver() {
         initialize();
@@ -727,10 +727,13 @@ mod tests {
 
         let mid_frame_time = bin_interface.current_frame_time();
         assert_eq!(mid_frame_time, 140);
+        bin_interface.pin_mut().restart_from_event(0);
+        let last_frame_time = bin_interface.current_frame_time();
+        assert!(last_frame_time<50);
 
         bin_interface.pin_mut().restart_from_event(50);
         let last_frame_time = bin_interface.current_frame_time();
-        assert_eq!(last_frame_time, 100);
+        assert_eq!(last_frame_time, 51);
 
         // let eip =
         //     bin_interface.get_register(GdbRegister::DREG_RIP, bin_interface.get_current_thread());
